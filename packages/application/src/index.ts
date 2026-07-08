@@ -17,6 +17,8 @@ export * from "./ports/IContextBundleRepository.js";
 export * from "./ports/IClaudeService.js";
 export * from "./ports/IGeocoder.js";
 export * from "./ports/IIdGenerator.js";
+export * from "./ports/IMarketResearchService.js";
+export * from "./ports/IScheduler.js";
 
 export * from "./dto/account/AccountSummaryDto.js";
 export * from "./dto/account/AccountDetailDto.js";
@@ -26,6 +28,7 @@ export * from "./dto/document/DocumentDto.js";
 export * from "./dto/note/NoteDto.js";
 export * from "./dto/insight/InsightDto.js";
 export * from "./dto/temperature/TemperatureAssessmentDto.js";
+export * from "./dto/RunMarketResearchSweepResult.js";
 
 export * from "./use-cases/account/GetAccountDetail.js";
 export * from "./use-cases/account/ListAccounts.js";
@@ -40,3 +43,4 @@ export * from "./use-cases/document/TransitionDocumentState.js";
 export * from "./use-cases/note/CreateNote.js";
 export * from "./use-cases/insight/GenerateInsight.js";
 export * from "./use-cases/context/BuildContextBundle.js";
+export * from "./use-cases/RunMarketResearchSweep.js";

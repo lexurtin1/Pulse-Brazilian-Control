@@ -9,6 +9,9 @@ import {
   ListAccountsWithCoordinates,
   ListSignalsForAccount,
   ResolveAccountCoordinate,
+  RunMarketResearchSweep,
+  type ScheduledJobHandle,
+  type IScheduler,
   SubmitDocument,
   TransitionDocumentState,
   UpdateAccountTemperature,
@@ -16,6 +19,8 @@ import {
 import type { Pool } from "pg";
 import { ClaudeServiceAdapter } from "../adapters/ClaudeServiceAdapter.js";
 import { GeocoderAdapter } from "../adapters/GeocoderAdapter.js";
+import { NodeCronScheduler } from "../adapters/NodeCronScheduler.js";
+import { PerplexityMarketResearchAdapter } from "../adapters/PerplexityMarketResearchAdapter.js";
 import { PostgresAccountRepository } from "../adapters/PostgresAccountRepository.js";
 import { PostgresContextBundleRepository } from "../adapters/PostgresContextBundleRepository.js";
 import { PostgresDocumentRepository } from "../adapters/PostgresDocumentRepository.js";
@@ -30,6 +35,7 @@ export interface CompositionRootConfig {
   databaseUrl: string;
   anthropicApiKey: string;
   googleMapsApiKey: string;
+  perplexityApiKey: string;
 }
 
 /**
@@ -57,6 +63,8 @@ export class CompositionRoot {
   readonly createNote: CreateNote;
   readonly generateInsight: GenerateInsight;
   readonly buildContextBundle: BuildContextBundle;
+  readonly runMarketResearchSweep: RunMarketResearchSweep;
+  readonly scheduler: IScheduler;
 
   constructor(config: CompositionRootConfig) {
     this.pool = createPool(config.databaseUrl);
@@ -72,6 +80,9 @@ export class CompositionRoot {
     const idGenerator = new UlidIdGenerator();
     const geocoder = new GeocoderAdapter(config.googleMapsApiKey);
     const claudeService = new ClaudeServiceAdapter(config.anthropicApiKey);
+    const marketResearch = new PerplexityMarketResearchAdapter(config.perplexityApiKey);
+    const scheduler = new NodeCronScheduler();
+    this.scheduler = scheduler;
 
     this.buildContextBundle = new BuildContextBundle(notes, documents, signals, contextBundles, idGenerator);
 
@@ -87,6 +98,24 @@ export class CompositionRoot {
     this.transitionDocumentState = new TransitionDocumentState(documents);
     this.createNote = new CreateNote(notes, accounts, idGenerator);
     this.generateInsight = new GenerateInsight(insights, claudeService, idGenerator, this.buildContextBundle);
+    this.runMarketResearchSweep = new RunMarketResearchSweep(accounts, signals, marketResearch, idGenerator);
+  }
+
+  /**
+   * Registers the daily market research sweep on a cron schedule.
+   * Runs at 07:00 São Paulo time every weekday morning.
+   * Returns the handle so the caller can cancel on shutdown if needed.
+   */
+  scheduleMarketResearchSweep(): ScheduledJobHandle {
+    return this.scheduler.schedule("0 7 * * 1-5", "America/Sao_Paulo", async () => {
+      const result = await this.runMarketResearchSweep.execute({});
+      console.info(
+        `[MarketResearchSweep] Completed — accounts: ${result.accountsProcessed}, signals: ${result.signalsCreated}, errors: ${result.errors.length}`,
+      );
+      if (result.errors.length > 0) {
+        console.warn("[MarketResearchSweep] Per-account errors:", result.errors);
+      }
+    });
   }
 
   /** Closes the underlying pg Pool — call on graceful shutdown. */

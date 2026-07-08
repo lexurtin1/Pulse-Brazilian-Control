@@ -8,5 +8,6 @@ export enum SignalType {
   ETF = "ETF",
   OrderRouting = "OrderRouting",
   AccountSpecific = "AccountSpecific",
+  MarketResearch = "MarketResearch",
   Other = "Other",
 }
