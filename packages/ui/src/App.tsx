@@ -74,8 +74,8 @@ export function App() {
             selectedAccountId={selectedAccountId}
             onSelectAccount={handleSelectAccount}
           />
+          <MapLegend pins={mapPins} />
         </div>
-        <MapLegend pins={mapPins} />
       </div>
       <PulseLogo />
       <UploadFAB accountsForLinking={accounts} />

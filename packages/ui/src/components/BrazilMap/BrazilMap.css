@@ -20,7 +20,7 @@
   width: 12px;
   height: 12px;
   border-radius: var(--radius-full);
-  background: var(--color-text-faint);
+  background: var(--color-temp-cold);
   border: 2px solid var(--color-surface);
   box-shadow: var(--shadow-sm);
   cursor: pointer;
@@ -28,7 +28,7 @@
 
 .marker-dot--hot {
   position: relative;
-  background: var(--color-primary);
+  background: var(--color-temp-hot);
 }
 
 .marker-dot--hot::after {
@@ -36,8 +36,20 @@
   position: absolute;
   inset: -8px;
   border-radius: var(--radius-full);
-  border: 2px solid var(--color-primary);
+  border: 2px solid var(--color-temp-hot);
   animation: pulse-ring 2s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+}
+
+.marker-dot--warm {
+  background: var(--color-temp-warm);
+}
+
+.marker-dot--cool {
+  background: var(--color-temp-cool);
+}
+
+.marker-dot--cold {
+  background: var(--color-temp-cold);
 }
 
 .marker-dot--selected {

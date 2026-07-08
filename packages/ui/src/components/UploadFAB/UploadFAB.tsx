@@ -3,6 +3,7 @@ import type { DragEvent, FormEvent } from "react";
 import { Plus, X, UploadCloud } from "lucide-react";
 import type { AccountSummaryDto } from "@pulse-brazil/application";
 import { useDialogA11y } from "../../hooks/useDialogA11y";
+import { formatEnumLabel } from "../../utils/formatEnumLabel";
 import "./UploadFAB.css";
 
 interface UploadFABProps {
@@ -11,6 +12,7 @@ interface UploadFABProps {
 
 const SOURCE_TYPES = ["DocumentUpload", "EmailForward", "ManualEntry", "WebResearch", "Other"];
 const TITLE_ID = "upload-sheet-title";
+const SOURCE_TYPE_LEGEND_ID = "upload-sheet-source-type-legend";
 
 export function UploadFAB({ accountsForLinking }: UploadFABProps) {
   const [isOpen, setIsOpen] = useState(false);
@@ -63,7 +65,7 @@ export function UploadFAB({ accountsForLinking }: UploadFABProps) {
 
             <form className="upload-sheet__form" onSubmit={handleSubmit}>
               <h2 id={TITLE_ID} className="upload-sheet__title">
-                Upload Document
+                Add a source document
               </h2>
 
               <div
@@ -86,16 +88,26 @@ export function UploadFAB({ accountsForLinking }: UploadFABProps) {
                 />
               </div>
 
-              <label className="upload-sheet__field">
-                <span>Source type</span>
-                <select defaultValue={SOURCE_TYPES[0]}>
-                  {SOURCE_TYPES.map((type) => (
-                    <option key={type} value={type}>
-                      {type}
-                    </option>
+              <fieldset className="upload-sheet__field upload-sheet__source-type">
+                <legend id={SOURCE_TYPE_LEGEND_ID}>Source type</legend>
+                <div className="upload-sheet__pill-group" role="radiogroup" aria-labelledby={SOURCE_TYPE_LEGEND_ID}>
+                  {SOURCE_TYPES.map((type, index) => (
+                    <span key={type} className="upload-sheet__pill">
+                      <input
+                        type="radio"
+                        id={`source-type-${type}`}
+                        name="sourceType"
+                        value={type}
+                        defaultChecked={index === 0}
+                        className="upload-sheet__pill-input"
+                      />
+                      <label htmlFor={`source-type-${type}`} className="upload-sheet__pill-label">
+                        {formatEnumLabel(type)}
+                      </label>
+                    </span>
                   ))}
-                </select>
-              </label>
+                </div>
+              </fieldset>
 
               <label className="upload-sheet__field">
                 <span>Link to account (optional)</span>
@@ -116,7 +128,7 @@ export function UploadFAB({ accountsForLinking }: UploadFABProps) {
               </label>
 
               <button type="submit" className="upload-sheet__submit">
-                Submit
+                Add to Pulse
               </button>
             </form>
           </div>

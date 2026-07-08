@@ -35,7 +35,15 @@ export function BrazilMap({ pins, selectedAccountId, onSelectAccount }: BrazilMa
     map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), "top-left");
     mapRef.current = map;
 
+    // Mapbox doesn't detect CSS-driven container resizes on its own (e.g.
+    // the signal feed collapsing/expanding changes this container's width
+    // via a flex layout) — without this the canvas stays the old size and
+    // visibly misaligns until the window itself is resized.
+    const resizeObserver = new ResizeObserver(() => map.resize());
+    resizeObserver.observe(containerRef.current);
+
     return () => {
+      resizeObserver.disconnect();
       map.remove();
       mapRef.current = null;
     };
@@ -50,7 +58,8 @@ export function BrazilMap({ pins, selectedAccountId, onSelectAccount }: BrazilMa
 
     for (const pin of pins) {
       const el = document.createElement("div");
-      el.className = pin.temperatureBand === "Hot" ? "marker-dot marker-dot--hot" : "marker-dot";
+      const bandClass = pin.temperatureBand ? ` marker-dot--${pin.temperatureBand.toLowerCase()}` : "";
+      el.className = `marker-dot${bandClass}`;
       el.title = pin.name;
       el.tabIndex = 0;
       el.setAttribute("role", "button");

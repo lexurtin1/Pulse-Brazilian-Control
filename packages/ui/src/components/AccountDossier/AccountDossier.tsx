@@ -68,9 +68,15 @@ export function AccountDossier({ accountId, onClose }: AccountDossierProps) {
               {state.detail.name}
             </h2>
             <div className="account-dossier__meta">
-              <span>{state.detail.status}</span>
-              {state.detail.temperatureBand && <span>{state.detail.temperatureBand}</span>}
-              {state.detail.primaryLocation.city && <span>{state.detail.primaryLocation.city}</span>}
+              <span className="account-dossier__status-chip">{state.detail.status}</span>
+              {state.detail.temperatureBand && (
+                <span className="account-dossier__temp-chip" data-band={state.detail.temperatureBand}>
+                  {state.detail.temperatureBand}
+                </span>
+              )}
+              {state.detail.primaryLocation.city && (
+                <span className="account-dossier__location">{state.detail.primaryLocation.city}</span>
+              )}
             </div>
 
             {state.detail.latestInsight && (

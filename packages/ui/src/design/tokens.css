@@ -20,6 +20,43 @@
   /* Text/icons placed on top of --color-primary (buttons, filled badges) */
   --color-on-accent: #ffffff;
 
+  /* Temperature ramp — same semantic colors wherever a band is shown
+     (map markers, legend, feed dots, dossier badges). Hot intentionally
+     equals --color-primary/-highlight; kept as separate names so nothing
+     has to know "the accent" and "Hot" are the same color by coincidence. */
+  --color-temp-hot: #2d5a27;
+  --color-temp-hot-bg: #d4e4d2;
+  /* Warm's text is darkened from the raw extracted #9a6b25 (~3.6:1 against
+     its bg tint, fails WCAG AA) to clear 4.5:1 for normal-size chip text. */
+  --color-temp-warm: #82591c;
+  --color-temp-warm-bg: #eee2cc;
+  --color-temp-cool: #4f6474;
+  --color-temp-cool-bg: #dfe6ec;
+  --color-temp-cold: #b0afa9;
+  --color-temp-cold-bg: #eceae5;
+
+  /* Signal-type chip colors — one pair per real SignalType enum value. */
+  --signal-regulatorychange-text: #2d5a27;
+  --signal-regulatorychange-bg: #dce8da;
+  --signal-competitiveintelligence-text: #8a5a1e;
+  --signal-competitiveintelligence-bg: #f0e4d0;
+  --signal-marketstructure-text: #3f5468;
+  --signal-marketstructure-bg: #dfe6ec;
+  --signal-crossborder-text: #2f5c52;
+  --signal-crossborder-bg: #d9e8e3;
+  --signal-tokenisation-text: #2f5c45;
+  --signal-tokenisation-bg: #dbe8e0;
+  --signal-etf-text: #2c5f6b;
+  --signal-etf-bg: #d7e6e8;
+  --signal-orderrouting-text: #5f5c2c;
+  --signal-orderrouting-bg: #e9e7cf;
+  --signal-accountspecific-text: #79452c;
+  --signal-accountspecific-bg: #efdfd6;
+  --signal-marketresearch-text: #55575c;
+  --signal-marketresearch-bg: #e3e3e1;
+  --signal-other-text: #6b5f52;
+  --signal-other-bg: #e8e2d9;
+
   /* Type */
   --font-body: "Inter", system-ui, sans-serif;
   --font-display: "Inter", system-ui, sans-serif;
@@ -93,9 +130,54 @@
     --color-primary-highlight: #21351f;
     --color-on-accent: #12200d;
 
+    /* Temperature ramp — same brighten-text/darken-bg treatment as the accent above */
+    --color-temp-hot: #55a85c;
+    --color-temp-hot-bg: #21351f;
+    --color-temp-warm: #d9a34a;
+    --color-temp-warm-bg: #3a2f18;
+    --color-temp-cool: #8fa8ba;
+    --color-temp-cool-bg: #232c33;
+    --color-temp-cold: #6e6a62;
+    --color-temp-cold-bg: #2a2823;
+
+    /* Signal-type chip colors */
+    --signal-regulatorychange-text: #55a85c;
+    --signal-regulatorychange-bg: #1f351f;
+    --signal-competitiveintelligence-text: #c99a52;
+    --signal-competitiveintelligence-bg: #362c1c;
+    --signal-marketstructure-text: #7f97a8;
+    --signal-marketstructure-bg: #212a30;
+    --signal-crossborder-text: #4f9a89;
+    --signal-crossborder-bg: #1e332e;
+    --signal-tokenisation-text: #4f9a68;
+    --signal-tokenisation-bg: #1e3327;
+    --signal-etf-text: #4f8f9c;
+    --signal-etf-bg: #1e2f33;
+    --signal-orderrouting-text: #b8a94a;
+    --signal-orderrouting-bg: #33301c;
+    --signal-accountspecific-text: #c17d55;
+    --signal-accountspecific-bg: #3a2a20;
+    --signal-marketresearch-text: #9a9ca3;
+    --signal-marketresearch-bg: #2c2d30;
+    --signal-other-text: #a8927e;
+    --signal-other-bg: #332c24;
+
     /* Shadows — deeper + a faint light edge instead of a near-invisible dark blur */
     --shadow-sm: 0 1px 2px oklch(0 0 0 / 0.4), 0 0 0 1px oklch(1 0 0 / 0.04);
     --shadow-md: 0 4px 16px oklch(0 0 0 / 0.5), 0 0 0 1px oklch(1 0 0 / 0.06);
+  }
+}
+
+/*
+ * Looping/pulsing animations (the Hot-marker pulse ring) are disabled for
+ * users who've asked the OS for reduced motion. One-shot entrance
+ * transitions (drawer slide-in, sheet slide-up) are left alone — they're
+ * brief and not the kind of motion this preference is meant to suppress.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .marker-dot--hot::after,
+  .signal-feed__temp-dot[data-band="Hot"]::after {
+    animation: none !important;
   }
 }
 
