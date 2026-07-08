@@ -1,0 +1,6 @@
+{
+  "installCommand": "npm install",
+  "buildCommand": "npm run build --workspace=@pulse-brazil/ui",
+  "outputDirectory": "packages/ui/dist",
+  "devCommand": "npm run dev --workspace=@pulse-brazil/ui"
+}

@@ -7,6 +7,7 @@ import {
   GetAccountDetail,
   ListAccounts,
   ListAccountsWithCoordinates,
+  ListRecentSignals,
   ListSignalsForAccount,
   ResolveAccountCoordinate,
   RunMarketResearchSweep,
@@ -57,6 +58,7 @@ export class CompositionRoot {
   readonly listAccountsWithCoordinates: ListAccountsWithCoordinates;
   readonly createSignal: CreateSignal;
   readonly listSignalsForAccount: ListSignalsForAccount;
+  readonly listRecentSignals: ListRecentSignals;
   /** Exposed under this name per the requested composition-root shape; the class itself is SubmitDocument — see README. */
   readonly ingestDocument: SubmitDocument;
   readonly transitionDocumentState: TransitionDocumentState;
@@ -94,6 +96,7 @@ export class CompositionRoot {
     this.listAccountsWithCoordinates = new ListAccountsWithCoordinates(accounts);
     this.createSignal = new CreateSignal(signals, accounts, idGenerator);
     this.listSignalsForAccount = new ListSignalsForAccount(signals);
+    this.listRecentSignals = new ListRecentSignals(signals);
     this.ingestDocument = new SubmitDocument(documents, idGenerator);
     this.transitionDocumentState = new TransitionDocumentState(documents);
     this.createNote = new CreateNote(notes, accounts, idGenerator);

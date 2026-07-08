@@ -99,6 +99,14 @@ export class PostgresSignalRepository implements ISignalRepository {
     return rows.map(rowToSignal);
   }
 
+  async findRecent(limit: number): Promise<Signal[]> {
+    const { rows } = await this.pool.query<SignalRow>(
+      "SELECT * FROM signals ORDER BY date_observed DESC LIMIT $1",
+      [limit],
+    );
+    return rows.map(rowToSignal);
+  }
+
   async save(signal: Signal): Promise<void> {
     await this.pool.query(
       `

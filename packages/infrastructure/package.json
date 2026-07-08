@@ -8,7 +8,8 @@
   "types": "./src/index.ts",
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "migrate": "tsx src/db/run-migrations.ts"
+    "migrate": "tsx src/db/run-migrations.ts",
+    "seed": "tsx src/db/seed.ts"
   },
   "devDependencies": {
     "typescript": "^5.5.0",

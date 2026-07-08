@@ -38,6 +38,7 @@ export * from "./use-cases/account/ResolveAccountCoordinate.js";
 export * from "./use-cases/account/ListAccountsWithCoordinates.js";
 export * from "./use-cases/signal/CreateSignal.js";
 export * from "./use-cases/signal/ListSignalsForAccount.js";
+export * from "./use-cases/signal/ListRecentSignals.js";
 export * from "./use-cases/document/SubmitDocument.js";
 export * from "./use-cases/document/TransitionDocumentState.js";
 export * from "./use-cases/note/CreateNote.js";
