@@ -1,6 +1,13 @@
+import type { AccountMapPinDto } from "@pulse-brazil/application";
 import "./MapLegend.css";
 
-export function MapLegend() {
+interface MapLegendProps {
+  pins: AccountMapPinDto[];
+}
+
+export function MapLegend({ pins }: MapLegendProps) {
+  if (pins.length === 0) return null;
+
   return (
     <div className="map-legend">
       <div className="map-legend__item">

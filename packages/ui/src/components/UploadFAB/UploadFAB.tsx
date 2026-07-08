@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { DragEvent, FormEvent } from "react";
 import { Plus, X, UploadCloud } from "lucide-react";
 import type { AccountSummaryDto } from "@pulse-brazil/application";
+import { useDialogA11y } from "../../hooks/useDialogA11y";
 import "./UploadFAB.css";
 
 interface UploadFABProps {
@@ -9,11 +10,19 @@ interface UploadFABProps {
 }
 
 const SOURCE_TYPES = ["DocumentUpload", "EmailForward", "ManualEntry", "WebResearch", "Other"];
+const TITLE_ID = "upload-sheet-title";
 
 export function UploadFAB({ accountsForLinking }: UploadFABProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isDragActive, setIsDragActive] = useState(false);
   const [fileName, setFileName] = useState<string | null>(null);
+  const sheetRef = useRef<HTMLDivElement>(null);
+
+  function close() {
+    setIsOpen(false);
+  }
+
+  useDialogA11y(sheetRef, isOpen, close);
 
   function handleDrop(event: DragEvent<HTMLDivElement>) {
     event.preventDefault();
@@ -30,32 +39,32 @@ export function UploadFAB({ accountsForLinking }: UploadFABProps) {
 
   return (
     <>
-      <button
-        type="button"
-        className="upload-fab"
-        aria-label="Upload document"
-        onClick={() => setIsOpen(true)}
-      >
+      <button type="button" className="upload-fab" aria-label="Upload document" onClick={() => setIsOpen(true)}>
         <Plus size={22} strokeWidth={2.25} />
       </button>
 
       {isOpen && (
-        <div className="upload-sheet-backdrop" onClick={() => setIsOpen(false)}>
-          <div className="upload-sheet" onClick={(event) => event.stopPropagation()}>
+        <div className="upload-sheet-backdrop" onClick={close}>
+          <div
+            ref={sheetRef}
+            className="upload-sheet"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={TITLE_ID}
+            tabIndex={-1}
+            onClick={(event) => event.stopPropagation()}
+          >
             <div className="upload-sheet__handle-row">
               <span className="upload-sheet__handle" aria-hidden="true" />
-              <button
-                type="button"
-                className="upload-sheet__close"
-                aria-label="Close"
-                onClick={() => setIsOpen(false)}
-              >
+              <button type="button" className="upload-sheet__close" aria-label="Close" onClick={close}>
                 <X size={18} />
               </button>
             </div>
 
             <form className="upload-sheet__form" onSubmit={handleSubmit}>
-              <h2 className="upload-sheet__title">Upload Document</h2>
+              <h2 id={TITLE_ID} className="upload-sheet__title">
+                Upload Document
+              </h2>
 
               <div
                 className="upload-sheet__dropzone"
@@ -90,14 +99,20 @@ export function UploadFAB({ accountsForLinking }: UploadFABProps) {
 
               <label className="upload-sheet__field">
                 <span>Link to account (optional)</span>
-                <select defaultValue="">
-                  <option value="">None</option>
-                  {accountsForLinking.map((account) => (
-                    <option key={account.id} value={account.id}>
-                      {account.name}
-                    </option>
-                  ))}
-                </select>
+                {accountsForLinking.length === 0 ? (
+                  <select disabled defaultValue="">
+                    <option value="">No accounts yet</option>
+                  </select>
+                ) : (
+                  <select defaultValue="">
+                    <option value="">None</option>
+                    {accountsForLinking.map((account) => (
+                      <option key={account.id} value={account.id}>
+                        {account.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
               </label>
 
               <button type="submit" className="upload-sheet__submit">

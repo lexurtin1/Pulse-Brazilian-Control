@@ -26,6 +26,14 @@
   flex: 1;
 }
 
+.signal-feed__empty {
+  margin: 0;
+  padding: var(--space-8) var(--space-6);
+  text-align: center;
+  font-size: var(--text-sm);
+  color: var(--color-text-faint);
+}
+
 .signal-feed__item {
   display: block;
   width: 100%;

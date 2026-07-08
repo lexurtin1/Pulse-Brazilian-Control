@@ -17,6 +17,8 @@
   --color-primary-hover: #1e3d1a;
   --color-primary-active: #142910;
   --color-primary-highlight: #d4e4d2;
+  /* Text/icons placed on top of --color-primary (buttons, filled badges) */
+  --color-on-accent: #ffffff;
 
   /* Type */
   --font-body: "Inter", system-ui, sans-serif;
@@ -50,27 +52,50 @@
   --shadow-md: 0 4px 12px oklch(0.2 0.01 80 / 0.08);
 }
 
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
+/*
+ * Basic dark-mode fallback — system preference only, no manual toggle and
+ * nothing persisted (no localStorage). Every custom property above is
+ * redeclared here; nothing outside :root should ever branch on theme
+ * directly. Two things that don't just "invert":
+ *
+ * 1. The accent gets brighter, not just carried over as-is. The light-mode
+ *    --color-primary (#2d5a27) is a very dark green — great as a button
+ *    background under white text, but it fails WCAG AA (~2.2:1) when used
+ *    as a foreground mark (pulse-ring border, badge text) directly against
+ *    a dark page background. The dark-mode accent is lightened to ~6.5:1
+ *    against --color-bg for that use, and --color-on-accent flips to a
+ *    dark tone so accent-as-button-background stays readable too.
+ * 2. The shadow tokens are redeclared, not reused. A dark, low-opacity
+ *    shadow that reads as "elevation" on a warm off-white surface is
+ *    nearly invisible on a dark one. The dark versions pair a deeper drop
+ *    shadow with a faint light edge (a second shadow layer, not a border)
+ *    so raised surfaces still read as raised.
+ */
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* Surfaces */
+    --color-bg: #17150f;
+    --color-surface: #1e1c16;
+    --color-surface-2: #252219;
+    --color-surface-offset: #100f0a;
+    --color-divider: #322f26;
+    --color-border: #3d392e;
+
+    /* Text */
+    --color-text: #f0eee9;
+    --color-text-muted: #a8a49c;
+    --color-text-faint: #6e6a62;
+
+    /* Accent — brightened for contrast against a dark surface */
+    --color-primary: #55a85c;
+    --color-primary-hover: #6bbd72;
+    --color-primary-active: #438a49;
+    --color-primary-highlight: #21351f;
+    --color-on-accent: #12200d;
+
+    /* Shadows — deeper + a faint light edge instead of a near-invisible dark blur */
+    --shadow-sm: 0 1px 2px oklch(0 0 0 / 0.4), 0 0 0 1px oklch(1 0 0 / 0.04);
+    --shadow-md: 0 4px 16px oklch(0 0 0 / 0.5), 0 0 0 1px oklch(1 0 0 / 0.06);
+  }
 }
 
-html,
-body,
-#root {
-  height: 100%;
-  margin: 0;
-  overflow: hidden;
-}
-
-body {
-  background: var(--color-bg);
-  color: var(--color-text);
-  font-family: var(--font-body);
-  -webkit-font-smoothing: antialiased;
-}
-
-button {
-  font-family: inherit;
-}

@@ -8,7 +8,7 @@
   border-radius: var(--radius-full);
   border: none;
   background: var(--color-primary);
-  color: #fff;
+  color: var(--color-on-accent);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -24,6 +24,11 @@
 
 .upload-fab:active {
   background: var(--color-primary-active);
+}
+
+.upload-fab:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 3px;
 }
 
 .upload-sheet-backdrop {
@@ -47,6 +52,10 @@
   box-shadow: var(--shadow-md);
   padding: 0 var(--space-6) var(--space-6);
   animation: slide-up var(--transition-interactive);
+}
+
+.upload-sheet:focus-visible {
+  outline: none;
 }
 
 @keyframes slide-up {
@@ -84,6 +93,12 @@
   color: var(--color-text-muted);
   cursor: pointer;
   padding: var(--space-2);
+  border-radius: var(--radius-sm);
+}
+
+.upload-sheet__close:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
 }
 
 .upload-sheet__title {
@@ -144,13 +159,23 @@
   font-size: var(--text-sm);
 }
 
+.upload-sheet__field select:disabled {
+  color: var(--color-text-faint);
+  cursor: not-allowed;
+}
+
+.upload-sheet__field select:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 1px;
+}
+
 .upload-sheet__submit {
   margin-top: var(--space-2);
   padding: var(--space-3);
   border: none;
   border-radius: var(--radius-md);
   background: var(--color-primary);
-  color: #fff;
+  color: var(--color-on-accent);
   font-size: var(--text-sm);
   font-weight: 600;
   cursor: pointer;
@@ -159,4 +184,9 @@
 
 .upload-sheet__submit:hover {
   background: var(--color-primary-hover);
+}
+
+.upload-sheet__submit:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
 }

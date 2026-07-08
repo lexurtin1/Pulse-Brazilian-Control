@@ -27,32 +27,36 @@ export function SignalFeed({ signals, accountsById, selectedAccountId, onSelectA
       <div className="signal-feed__header">
         <h1 className="signal-feed__title">Signals</h1>
       </div>
-      <ul className="signal-feed__list">
-        {sorted.map((signal) => {
-          const accountId = signal.linkedAccountIds[0];
-          const account = accountId ? accountsById.get(accountId) : undefined;
-          const isSelected = accountId != null && accountId === selectedAccountId;
+      {sorted.length === 0 ? (
+        <p className="signal-feed__empty">No signals yet</p>
+      ) : (
+        <ul className="signal-feed__list">
+          {sorted.map((signal) => {
+            const accountId = signal.linkedAccountIds[0];
+            const account = accountId ? accountsById.get(accountId) : undefined;
+            const isSelected = accountId != null && accountId === selectedAccountId;
 
-          return (
-            <li key={signal.id}>
-              <button
-                type="button"
-                className="signal-feed__item"
-                data-selected={isSelected || undefined}
-                disabled={!accountId}
-                onClick={() => accountId && onSelectAccount(accountId)}
-              >
-                <div className="signal-feed__meta">
-                  <span className="signal-feed__timestamp">{formatTimestamp(signal.dateObserved)}</span>
-                  <span className="signal-feed__account">{account?.name ?? "Unlinked account"}</span>
-                  <span className="signal-feed__type">{signal.type}</span>
-                </div>
-                <p className="signal-feed__summary">{signal.summary}</p>
-              </button>
-            </li>
-          );
-        })}
-      </ul>
+            return (
+              <li key={signal.id}>
+                <button
+                  type="button"
+                  className="signal-feed__item"
+                  data-selected={isSelected || undefined}
+                  disabled={!accountId}
+                  onClick={() => accountId && onSelectAccount(accountId)}
+                >
+                  <div className="signal-feed__meta">
+                    <span className="signal-feed__timestamp">{formatTimestamp(signal.dateObserved)}</span>
+                    <span className="signal-feed__account">{account?.name ?? "Unlinked account"}</span>
+                    <span className="signal-feed__type">{signal.type}</span>
+                  </div>
+                  <p className="signal-feed__summary">{signal.summary}</p>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </div>
   );
 }

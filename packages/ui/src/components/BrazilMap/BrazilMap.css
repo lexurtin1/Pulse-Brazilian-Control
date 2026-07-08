@@ -45,6 +45,11 @@
   outline-offset: 2px;
 }
 
+.marker-dot:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 3px;
+}
+
 @keyframes pulse-ring {
   0% {
     transform: scale(0.6);

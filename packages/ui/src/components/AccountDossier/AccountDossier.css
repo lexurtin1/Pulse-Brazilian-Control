@@ -19,6 +19,10 @@
   animation: slide-in-right var(--transition-interactive);
 }
 
+.account-dossier:focus-visible {
+  outline: none;
+}
+
 @keyframes slide-in-right {
   from {
     transform: translateX(100%);
@@ -37,6 +41,12 @@
   color: var(--color-text-muted);
   cursor: pointer;
   padding: var(--space-2);
+  border-radius: var(--radius-sm);
+}
+
+.account-dossier__close:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
 }
 
 .account-dossier__status {

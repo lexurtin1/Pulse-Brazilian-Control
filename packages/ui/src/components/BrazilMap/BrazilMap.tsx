@@ -52,7 +52,16 @@ export function BrazilMap({ pins, selectedAccountId, onSelectAccount }: BrazilMa
       const el = document.createElement("div");
       el.className = pin.temperatureBand === "Hot" ? "marker-dot marker-dot--hot" : "marker-dot";
       el.title = pin.name;
+      el.tabIndex = 0;
+      el.setAttribute("role", "button");
+      el.setAttribute("aria-label", pin.name);
       el.addEventListener("click", () => onSelectAccountRef.current?.(pin.id));
+      el.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onSelectAccountRef.current?.(pin.id);
+        }
+      });
 
       const marker = new mapboxgl.Marker({ element: el })
         .setLngLat([pin.coordinate.longitude, pin.coordinate.latitude])

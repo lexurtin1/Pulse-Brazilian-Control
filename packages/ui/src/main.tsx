@@ -1,7 +1,8 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import "mapbox-gl/dist/mapbox-gl.css";
 import "./design/tokens.css";
+import "./design/base.css";
+import "mapbox-gl/dist/mapbox-gl.css";
 import { App } from "./App";
 
 const container = document.getElementById("root");
