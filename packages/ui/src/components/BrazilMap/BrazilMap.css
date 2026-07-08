@@ -4,18 +4,6 @@
   height: 100%;
 }
 
-.brazil-map--empty {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  padding: var(--space-8);
-  text-align: center;
-  color: var(--color-text-muted);
-  font-size: var(--text-sm);
-  background: var(--color-surface-offset);
-}
-
 .marker-dot {
   width: 12px;
   height: 12px;

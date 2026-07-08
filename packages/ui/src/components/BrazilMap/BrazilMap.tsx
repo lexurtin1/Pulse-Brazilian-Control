@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import mapboxgl from "mapbox-gl";
+import maplibregl from "maplibre-gl";
 import type { AccountMapPinDto } from "@pulse-brazil/application";
 import "./BrazilMap.css";
 
@@ -13,29 +13,32 @@ const BRAZIL_CENTER: [number, number] = [-51.9253, -14.235];
 const BRAZIL_ZOOM = 3.6;
 const SELECTED_ZOOM = 7;
 
+// OpenFreeMap: free, keyless vector tiles for MapLibre GL JS — no account,
+// no API token, no usage limits. "positron" is a clean light/muted style,
+// matching Soft Quartz's calm aesthetic better than a busier default style.
+const MAP_STYLE_URL = "https://tiles.openfreemap.org/styles/positron";
+
 export function BrazilMap({ pins, selectedAccountId, onSelectAccount }: BrazilMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<mapboxgl.Map | null>(null);
-  const markersRef = useRef<Map<string, mapboxgl.Marker>>(new Map());
-  const token = import.meta.env.VITE_MAPBOX_TOKEN;
+  const mapRef = useRef<maplibregl.Map | null>(null);
+  const markersRef = useRef<Map<string, maplibregl.Marker>>(new Map());
 
   const onSelectAccountRef = useRef(onSelectAccount);
   onSelectAccountRef.current = onSelectAccount;
 
   useEffect(() => {
-    if (!token || !containerRef.current) return;
+    if (!containerRef.current) return;
 
-    mapboxgl.accessToken = token;
-    const map = new mapboxgl.Map({
+    const map = new maplibregl.Map({
       container: containerRef.current,
-      style: "mapbox://styles/mapbox/light-v11",
+      style: MAP_STYLE_URL,
       center: BRAZIL_CENTER,
       zoom: BRAZIL_ZOOM,
     });
-    map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), "top-left");
+    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-left");
     mapRef.current = map;
 
-    // Mapbox doesn't detect CSS-driven container resizes on its own (e.g.
+    // MapLibre doesn't detect CSS-driven container resizes on its own (e.g.
     // the signal feed collapsing/expanding changes this container's width
     // via a flex layout) — without this the canvas stays the old size and
     // visibly misaligns until the window itself is resized.
@@ -47,7 +50,7 @@ export function BrazilMap({ pins, selectedAccountId, onSelectAccount }: BrazilMa
       map.remove();
       mapRef.current = null;
     };
-  }, [token]);
+  }, []);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -72,7 +75,7 @@ export function BrazilMap({ pins, selectedAccountId, onSelectAccount }: BrazilMa
         }
       });
 
-      const marker = new mapboxgl.Marker({ element: el })
+      const marker = new maplibregl.Marker({ element: el })
         .setLngLat([pin.coordinate.longitude, pin.coordinate.latitude])
         .addTo(map);
 
@@ -98,14 +101,6 @@ export function BrazilMap({ pins, selectedAccountId, onSelectAccount }: BrazilMa
       essential: true,
     });
   }, [selectedAccountId, pins]);
-
-  if (!token) {
-    return (
-      <div className="brazil-map brazil-map--empty">
-        <p>Set VITE_MAPBOX_TOKEN in packages/ui/.env.local to activate the map.</p>
-      </div>
-    );
-  }
 
   return <div ref={containerRef} className="brazil-map" />;
 }
