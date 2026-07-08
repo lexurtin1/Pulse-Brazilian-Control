@@ -4,9 +4,10 @@
   "private": true,
   "description": "Application layer for Pulse Brazil: use cases, repository/service ports, and DTOs. Depends on @pulse-brazil/domain only.",
   "type": "module",
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "scripts": {
+    "build": "tsc",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {

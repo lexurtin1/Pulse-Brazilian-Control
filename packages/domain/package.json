@@ -4,9 +4,10 @@
   "private": true,
   "description": "Pure domain layer for Pulse Brazil: entities, value objects, and invariants. No framework, infrastructure, or UI dependencies.",
   "type": "module",
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "scripts": {
+    "build": "tsc",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {

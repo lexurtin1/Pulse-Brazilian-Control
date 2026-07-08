@@ -3,5 +3,8 @@
   "type": "module",
   "workspaces": [
     "packages/*"
-  ]
+  ],
+  "scripts": {
+    "build:packages": "npm run build --workspace=@pulse-brazil/domain && npm run build --workspace=@pulse-brazil/application && npm run build --workspace=@pulse-brazil/infrastructure && npm run build --workspace=@pulse-brazil/api"
+  }
 }
