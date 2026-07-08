@@ -1,0 +1,18 @@
+{
+  "name": "@pulse-brazil/application",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Application layer for Pulse Brazil: use cases, repository/service ports, and DTOs. Depends on @pulse-brazil/domain only.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0"
+  },
+  "dependencies": {
+    "@pulse-brazil/domain": "*"
+  }
+}
