@@ -1,0 +1,33 @@
+.app-shell {
+  display: flex;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.app-shell__left {
+  width: 35%;
+  height: 100%;
+}
+
+.app-shell__right {
+  width: 65%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-surface-offset);
+}
+
+.app-shell__map {
+  flex: 1;
+  min-height: 0;
+}
+
+.app-shell--status {
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-muted);
+  font-size: var(--text-base);
+  text-align: center;
+  padding: var(--space-8);
+}
