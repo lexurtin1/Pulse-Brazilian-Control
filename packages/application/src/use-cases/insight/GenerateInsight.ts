@@ -44,7 +44,8 @@ export function toInsightDto(insight: Insight): InsightDto {
   };
 }
 
-function toRelatedEntityReference(input: ClaudeRelatedEntityResult): RelatedEntityReference {
+/** Shared by PostgresInsightRepository too — converts a plain {kind, id} pair into a branded RelatedEntityReference. */
+export function toRelatedEntityReference(input: ClaudeRelatedEntityResult): RelatedEntityReference {
   if (!Object.values(RelatedEntityKind).includes(input.kind as RelatedEntityKind)) {
     throw new UpstreamServiceError("Claude", `unrecognized related entity kind: ${input.kind}`);
   }

@@ -20,6 +20,7 @@ export * from "./ports/IIdGenerator.js";
 
 export * from "./dto/account/AccountSummaryDto.js";
 export * from "./dto/account/AccountDetailDto.js";
+export * from "./dto/account/AccountMapPinDto.js";
 export * from "./dto/signal/SignalDto.js";
 export * from "./dto/document/DocumentDto.js";
 export * from "./dto/note/NoteDto.js";
@@ -30,6 +31,8 @@ export * from "./use-cases/account/GetAccountDetail.js";
 export * from "./use-cases/account/ListAccounts.js";
 export * from "./use-cases/account/CreateAccount.js";
 export * from "./use-cases/account/UpdateAccountTemperature.js";
+export * from "./use-cases/account/ResolveAccountCoordinate.js";
+export * from "./use-cases/account/ListAccountsWithCoordinates.js";
 export * from "./use-cases/signal/CreateSignal.js";
 export * from "./use-cases/signal/ListSignalsForAccount.js";
 export * from "./use-cases/document/SubmitDocument.js";

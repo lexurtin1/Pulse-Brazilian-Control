@@ -1,0 +1,26 @@
+{
+  "name": "@pulse-brazil/infrastructure",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Infrastructure layer for Pulse Brazil: Postgres repositories, the Claude and geocoder adapters, and the composition root. Implements the ports declared in @pulse-brazil/application.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "migrate": "tsx src/db/run-migrations.ts"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "@types/node": "^22.0.0",
+    "@types/pg": "^8.11.0",
+    "tsx": "^4.19.0"
+  },
+  "dependencies": {
+    "@pulse-brazil/domain": "*",
+    "@pulse-brazil/application": "*",
+    "@anthropic-ai/sdk": "^0.110.0",
+    "pg": "^8.13.0",
+    "ulid": "^2.3.0"
+  }
+}

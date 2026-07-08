@@ -33,7 +33,8 @@ export function toAccountSummaryDto(account: Account, latestTemperature: Tempera
   };
 }
 
-function toOfficeLocationDto(office: OfficeLocation): OfficeLocationDto {
+/** Shared by ResolveAccountCoordinate too — one mapping from OfficeLocation to its DTO shape. */
+export function toOfficeLocationDto(office: OfficeLocation): OfficeLocationDto {
   const coordinate = office.bestAvailableCoordinate;
   return {
     id: office.id,
