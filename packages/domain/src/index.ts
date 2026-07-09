@@ -11,3 +11,4 @@ export * from "./document/index.js";
 export * from "./note/index.js";
 export * from "./context/index.js";
 export * from "./insight/index.js";
+export * from "./location/index.js";

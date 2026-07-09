@@ -2,14 +2,26 @@ import { useEffect, useRef } from "react";
 import maplibregl from "maplibre-gl";
 import { MapboxOverlay } from "@deck.gl/mapbox";
 import { ScatterplotLayer } from "@deck.gl/layers";
-import type { AccountMapPinDto } from "@pulse-brazil/application";
+import type { AccountMapPinDto, LocationRecordMapPinDto } from "@pulse-brazil/application";
 import "./BrazilMap.css";
 
 interface BrazilMapProps {
   pins: AccountMapPinDto[];
+  locationPins?: LocationRecordMapPinDto[];
   selectedAccountId: string | null;
   onSelectAccount?: (accountId: string) => void;
 }
+
+// One fixed color per LocationRecordKind — distinct from the temperature-band
+// palette used for account pins, so the two marker families never get
+// visually confused with each other.
+const LOCATION_KIND_COLOR_VAR: Record<string, string> = {
+  Office: "--color-primary",
+  Event: "--color-temp-warm",
+  Visit: "--color-temp-cool",
+  SignalLocation: "--color-text-muted",
+  Other: "--color-text-faint",
+};
 
 const BRAZIL_CENTER: [number, number] = [-51.9253, -14.235];
 const BRAZIL_ZOOM = 3.6;
@@ -49,7 +61,7 @@ function cssOpacity(varName: string): number {
   return Number.isFinite(n) ? n : 1;
 }
 
-export function BrazilMap({ pins, selectedAccountId, onSelectAccount }: BrazilMapProps) {
+export function BrazilMap({ pins, locationPins = [], selectedAccountId, onSelectAccount }: BrazilMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const overlayRef = useRef<MapboxOverlay | null>(null);
@@ -222,7 +234,29 @@ export function BrazilMap({ pins, selectedAccountId, onSelectAccount }: BrazilMa
         getLineWidth: 2,
       });
 
-      return [halo, pulse, base];
+      // Office/Event/Visit/SignalLocation records — a separate marker family
+      // from account temperature pins (fixed per-kind color, not
+      // temperature-band color), so the two are never visually confused.
+      // reviewStatus drives opacity directly from the DTO the backend sent —
+      // the frontend never decides on its own whether a record is trustworthy.
+      const locationMarkers = new ScatterplotLayer<LocationRecordMapPinDto>({
+        id: "location-record-pins",
+        data: locationPins,
+        filled: true,
+        stroked: true,
+        radiusUnits: "pixels",
+        lineWidthUnits: "pixels",
+        getPosition: (pin) => [pin.coordinate.longitude, pin.coordinate.latitude],
+        getRadius: 7,
+        getFillColor: (pin) => {
+          const [r, g, b] = cssColor(LOCATION_KIND_COLOR_VAR[pin.kind] ?? "--color-text-faint");
+          return [r, g, b, pin.reviewStatus === "ReviewRequired" ? 150 : 255];
+        },
+        getLineColor: [...cssColor("--color-surface"), 255],
+        getLineWidth: 2,
+      });
+
+      return [halo, pulse, base, locationMarkers];
     }
 
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -243,7 +277,7 @@ export function BrazilMap({ pins, selectedAccountId, onSelectAccount }: BrazilMa
     frame = requestAnimationFrame(tick);
 
     return () => cancelAnimationFrame(frame);
-  }, [pins, selectedAccountId]);
+  }, [pins, locationPins, selectedAccountId]);
 
   useEffect(() => {
     const map = mapRef.current;

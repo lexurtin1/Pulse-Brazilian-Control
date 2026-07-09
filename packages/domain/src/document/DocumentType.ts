@@ -12,5 +12,6 @@ export enum DocumentType {
   ContractOrAgreement = "ContractOrAgreement",
   ResearchReport = "ResearchReport",
   EmailThread = "EmailThread",
+  LocationDataset = "LocationDataset",
   Other = "Other",
 }

@@ -224,6 +224,50 @@
   outline-offset: 2px;
 }
 
+.upload-sheet__hint {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--color-primary-highlight);
+  color: var(--color-primary);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+}
+
+.upload-sheet__error {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--color-temp-warm-bg);
+  color: var(--color-temp-warm);
+  font-size: var(--text-sm);
+}
+
+.upload-sheet__result {
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-2);
+  font-size: var(--text-sm);
+  color: var(--color-text);
+}
+
+.upload-sheet__result p {
+  margin: 0 0 var(--space-1);
+}
+
+.upload-sheet__result summary {
+  cursor: pointer;
+  color: var(--color-text-muted);
+}
+
+.upload-sheet__result-errors {
+  margin: var(--space-2) 0 0;
+  padding-left: var(--space-4);
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+}
+
 .upload-sheet__submit {
   margin-top: var(--space-2);
   padding: var(--space-3);
@@ -239,6 +283,11 @@
 
 .upload-sheet__submit:hover {
   background: var(--color-primary-hover);
+}
+
+.upload-sheet__submit:disabled {
+  background: var(--color-text-faint);
+  cursor: not-allowed;
 }
 
 .upload-sheet__submit:focus-visible {

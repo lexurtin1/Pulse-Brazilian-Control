@@ -19,6 +19,7 @@ export * from "./ports/IGeocoder.js";
 export * from "./ports/IIdGenerator.js";
 export * from "./ports/IMarketResearchService.js";
 export * from "./ports/IScheduler.js";
+export * from "./ports/ILocationRecordRepository.js";
 
 export * from "./dto/account/AccountSummaryDto.js";
 export * from "./dto/account/AccountDetailDto.js";
@@ -29,6 +30,12 @@ export * from "./dto/note/NoteDto.js";
 export * from "./dto/insight/InsightDto.js";
 export * from "./dto/temperature/TemperatureAssessmentDto.js";
 export * from "./dto/RunMarketResearchSweepResult.js";
+export * from "./dto/location/LocationRecordDto.js";
+export * from "./dto/location/LocationRecordMapPinDto.js";
+export * from "./dto/location/ImportLocationCsvResultDto.js";
+
+export * from "./validation/parseLocationCsv.js";
+export * from "./validation/LocationCsvRowValidator.js";
 
 export * from "./use-cases/account/GetAccountDetail.js";
 export * from "./use-cases/account/ListAccounts.js";
@@ -45,3 +52,5 @@ export * from "./use-cases/note/CreateNote.js";
 export * from "./use-cases/insight/GenerateInsight.js";
 export * from "./use-cases/context/BuildContextBundle.js";
 export * from "./use-cases/RunMarketResearchSweep.js";
+export * from "./use-cases/location/ImportLocationCsv.js";
+export * from "./use-cases/location/ListLocationRecordsForMap.js";

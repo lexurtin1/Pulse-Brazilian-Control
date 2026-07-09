@@ -10,12 +10,13 @@ let root: CompositionRoot | undefined;
 
 /**
  * Module-scope singleton so warm serverless invocations reuse the same pg
- * Pool instead of opening a new one per request. The current handlers are
- * all Postgres-only (accounts, signals) and never call the Claude/geocoder/
- * market-research use cases, so those three keys are passed as empty
- * placeholders rather than required here — CompositionRoot's adapters only
- * store a key at construction, no network call fires until their specific
- * use case executes. Revisit with real keys once a handler needs one.
+ * Pool instead of opening a new one per request. Most handlers are
+ * Postgres-only and never call the Claude/geocoder/market-research use
+ * cases, so those keys are passed as empty placeholders unless set —
+ * CompositionRoot's adapters only store a key at construction, no network
+ * call fires until their specific use case executes. locations/import is
+ * the exception: it calls IGeocoder, so GOOGLE_MAPS_API_KEY must be set in
+ * this deployment's environment for CSV imports to geocode addresses.
  */
 export function getCompositionRoot(): CompositionRoot {
   if (!root) {

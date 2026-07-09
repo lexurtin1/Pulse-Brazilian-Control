@@ -20,6 +20,7 @@ export type NoteId = Brand<string, "NoteId">;
 export type InsightId = Brand<string, "InsightId">;
 export type ContextBundleId = Brand<string, "ContextBundleId">;
 export type PromptProfileId = Brand<string, "PromptProfileId">;
+export type LocationRecordId = Brand<string, "LocationRecordId">;
 
 export function asAccountId(value: string): AccountId {
   return value as AccountId;
@@ -53,4 +54,7 @@ export function asContextBundleId(value: string): ContextBundleId {
 }
 export function asPromptProfileId(value: string): PromptProfileId {
   return value as PromptProfileId;
+}
+export function asLocationRecordId(value: string): LocationRecordId {
+  return value as LocationRecordId;
 }

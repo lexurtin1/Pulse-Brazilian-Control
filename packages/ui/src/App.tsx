@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import type { AccountMapPinDto, AccountSummaryDto, SignalDto } from "@pulse-brazil/application";
+import type { AccountMapPinDto, AccountSummaryDto, LocationRecordMapPinDto, SignalDto } from "@pulse-brazil/application";
 import { SignalFeed } from "./components/SignalFeed/SignalFeed";
 import { BrazilMap } from "./components/BrazilMap/BrazilMap";
 import { MapLegend } from "./components/MapLegend/MapLegend";
@@ -8,7 +8,7 @@ import { PulseLogo } from "./components/PulseLogo/PulseLogo";
 import { UploadFAB } from "./components/UploadFAB/UploadFAB";
 import { AccountDossier } from "./components/AccountDossier/AccountDossier";
 import { EntryAnimation } from "./components/EntryAnimation/EntryAnimation";
-import { fetchAccountMapPins, fetchAccounts, fetchRecentSignals } from "./api/client";
+import { fetchAccountMapPins, fetchAccounts, fetchLocationMapPins, fetchRecentSignals } from "./api/client";
 import "./App.css";
 
 type LoadState = "loading" | "error" | "ready";
@@ -30,6 +30,7 @@ export function App() {
   const [dossierAccountId, setDossierAccountId] = useState<string | null>(null);
   const [accounts, setAccounts] = useState<AccountSummaryDto[]>([]);
   const [mapPins, setMapPins] = useState<AccountMapPinDto[]>([]);
+  const [locationPins, setLocationPins] = useState<LocationRecordMapPinDto[]>([]);
   const [signals, setSignals] = useState<SignalDto[]>([]);
   const [status, setStatus] = useState<LoadState>("loading");
   const [introDone, setIntroDone] = useState(() => sessionStorage.getItem(INTRO_SESSION_KEY) === "1");
@@ -38,12 +39,13 @@ export function App() {
   useEffect(() => {
     let cancelled = false;
 
-    Promise.all([fetchAccounts(), fetchAccountMapPins(), fetchRecentSignals()])
-      .then(([accountsResult, mapPinsResult, signalsResult]) => {
+    Promise.all([fetchAccounts(), fetchAccountMapPins(), fetchRecentSignals(), fetchLocationMapPins()])
+      .then(([accountsResult, mapPinsResult, signalsResult, locationPinsResult]) => {
         if (cancelled) return;
         setAccounts(accountsResult);
         setMapPins(mapPinsResult);
         setSignals(signalsResult);
+        setLocationPins(locationPinsResult);
         setStatus("ready");
       })
       .catch((error) => {
@@ -54,6 +56,14 @@ export function App() {
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  // After a CSV import, re-fetch just the location pins so newly uploaded
+  // records show up without a full page reload.
+  const refreshLocationPins = useCallback(() => {
+    fetchLocationMapPins()
+      .then(setLocationPins)
+      .catch((error) => console.error("Failed to refresh location pins", error));
   }, []);
 
   const accountsById = useMemo(() => new Map(accounts.map((account) => [account.id, account])), [accounts]);
@@ -103,6 +113,7 @@ export function App() {
             <div ref={mapWrapRef} className="app-shell__map-live">
               <BrazilMap
                 pins={mapPins}
+                locationPins={locationPins}
                 selectedAccountId={selectedAccountId}
                 onSelectAccount={handleSelectAccount}
               />
@@ -116,7 +127,7 @@ export function App() {
           <PulseLogo />
         </motion.div>
         <motion.div variants={shellItemVariants}>
-          <UploadFAB accountsForLinking={accounts} />
+          <UploadFAB accountsForLinking={accounts} onImported={refreshLocationPins} />
         </motion.div>
       </motion.div>
       {showIntro && <EntryAnimation mapRef={mapWrapRef} onComplete={() => setIntroDone(true)} />}

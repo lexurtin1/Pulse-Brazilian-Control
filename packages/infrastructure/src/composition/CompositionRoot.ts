@@ -5,8 +5,10 @@ import {
   CreateSignal,
   GenerateInsight,
   GetAccountDetail,
+  ImportLocationCsv,
   ListAccounts,
   ListAccountsWithCoordinates,
+  ListLocationRecordsForMap,
   ListRecentSignals,
   ListSignalsForAccount,
   ResolveAccountCoordinate,
@@ -26,6 +28,7 @@ import { PostgresAccountRepository } from "../adapters/PostgresAccountRepository
 import { PostgresContextBundleRepository } from "../adapters/PostgresContextBundleRepository.js";
 import { PostgresDocumentRepository } from "../adapters/PostgresDocumentRepository.js";
 import { PostgresInsightRepository } from "../adapters/PostgresInsightRepository.js";
+import { PostgresLocationRecordRepository } from "../adapters/PostgresLocationRecordRepository.js";
 import { PostgresNoteRepository } from "../adapters/PostgresNoteRepository.js";
 import { PostgresSignalRepository } from "../adapters/PostgresSignalRepository.js";
 import { PostgresTemperatureAssessmentRepository } from "../adapters/PostgresTemperatureAssessmentRepository.js";
@@ -67,6 +70,8 @@ export class CompositionRoot {
   readonly buildContextBundle: BuildContextBundle;
   readonly runMarketResearchSweep: RunMarketResearchSweep;
   readonly scheduler: IScheduler;
+  readonly importLocationCsv: ImportLocationCsv;
+  readonly listLocationRecordsForMap: ListLocationRecordsForMap;
 
   constructor(config: CompositionRootConfig) {
     this.pool = createPool(config.databaseUrl);
@@ -78,6 +83,7 @@ export class CompositionRoot {
     const insights = new PostgresInsightRepository(this.pool);
     const contextBundles = new PostgresContextBundleRepository(this.pool);
     const temperatureAssessments = new PostgresTemperatureAssessmentRepository(this.pool);
+    const locationRecords = new PostgresLocationRecordRepository(this.pool);
 
     const idGenerator = new UlidIdGenerator();
     const geocoder = new GeocoderAdapter(config.googleMapsApiKey);
@@ -102,6 +108,8 @@ export class CompositionRoot {
     this.createNote = new CreateNote(notes, accounts, idGenerator);
     this.generateInsight = new GenerateInsight(insights, claudeService, idGenerator, this.buildContextBundle);
     this.runMarketResearchSweep = new RunMarketResearchSweep(accounts, signals, marketResearch, idGenerator);
+    this.importLocationCsv = new ImportLocationCsv(locationRecords, documents, accounts, geocoder, idGenerator);
+    this.listLocationRecordsForMap = new ListLocationRecordsForMap(locationRecords, accounts);
   }
 
   /**
