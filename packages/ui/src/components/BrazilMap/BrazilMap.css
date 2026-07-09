@@ -10,46 +10,6 @@
   height: 100%;
 }
 
-.brazil-map__flat {
-  position: absolute;
-  inset: 0;
-  opacity: 1;
-  transition: opacity 320ms ease;
-}
-
-.brazil-map__flat--hidden {
-  opacity: 0;
-  pointer-events: none;
-}
-
-.brazil-map__globe {
-  position: absolute;
-  inset: 0;
-  opacity: 0;
-  transition: opacity 320ms ease;
-  pointer-events: none;
-}
-
-.brazil-map__globe--visible {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-.brazil-map__3d-hint {
-  position: absolute;
-  inset: auto auto var(--space-2) 50%;
-  transform: translateX(-50%);
-  z-index: 1;
-  padding: var(--space-1) var(--space-3);
-  background: var(--color-surface);
-  color: var(--color-text-muted);
-  font-family: var(--font-body);
-  font-size: var(--text-xs);
-  border-radius: var(--radius-full);
-  box-shadow: var(--shadow-sm);
-  pointer-events: none;
-}
-
 /* Accessible alternative to the deck.gl-rendered pin dots (canvas content
    isn't focusable or screen-reader-visible). Each pin is a real button in
    normal tab order; clipped to 1px until focused so sighted keyboard users
