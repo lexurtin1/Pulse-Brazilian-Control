@@ -1,8 +1,9 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import { MapboxOverlay } from "@deck.gl/mapbox";
 import { ScatterplotLayer } from "@deck.gl/layers";
 import type { AccountMapPinDto } from "@pulse-brazil/application";
+import { Brazil3D } from "./Brazil3D";
 import "./BrazilMap.css";
 
 interface BrazilMapProps {
@@ -56,6 +57,41 @@ export function BrazilMap({ pins, selectedAccountId, onSelectAccount }: BrazilMa
 
   const onSelectAccountRef = useRef(onSelectAccount);
   onSelectAccountRef.current = onSelectAccount;
+
+  // Holding Ctrl swaps the flat 2D map for an isolated, freely-rotating 3D
+  // relief model of Brazil (real elevation, masked to the actual coastline —
+  // see Brazil3D.tsx). The 3D layer stays mounted after its first activation
+  // so repeated toggling doesn't re-fetch terrain tiles every time; only its
+  // visibility fades.
+  const [is3D, setIs3D] = useState(false);
+  const [has3DLoaded, setHas3DLoaded] = useState(false);
+
+  useEffect(() => {
+    if (is3D) setHas3DLoaded(true);
+  }, [is3D]);
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Control") setIs3D(true);
+    }
+    function handleKeyUp(event: KeyboardEvent) {
+      if (event.key === "Control") setIs3D(false);
+    }
+    // Safety net: if focus leaves the window while Ctrl is held (e.g. a
+    // Ctrl+Tab app switch), the keyup never fires here — reset on blur so
+    // the 3D view doesn't get stuck on.
+    function handleBlur() {
+      setIs3D(false);
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keyup", handleKeyUp);
+    window.addEventListener("blur", handleBlur);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
+      window.removeEventListener("blur", handleBlur);
+    };
+  }, []);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -262,25 +298,33 @@ export function BrazilMap({ pins, selectedAccountId, onSelectAccount }: BrazilMa
 
   return (
     <div className="brazil-map">
-      <div ref={containerRef} className="brazil-map__canvas" />
-      {/* deck.gl renders pins to canvas, which isn't natively focusable/
-          screen-reader-accessible. This mirrors the same click behavior as a
-          real, tabbable, always-in-the-DOM control per pin — hidden until
-          focused so it doesn't visually duplicate the canvas dots. */}
-      <div className="brazil-map__a11y-pins">
-        {pins.map((pin) => (
-          <button
-            key={pin.id}
-            type="button"
-            className="brazil-map__a11y-pin"
-            aria-label={pin.name}
-            aria-pressed={pin.id === selectedAccountId}
-            onClick={() => onSelectAccount?.(pin.id)}
-          >
-            {pin.name}
-          </button>
-        ))}
+      <div className={`brazil-map__flat${is3D ? " brazil-map__flat--hidden" : ""}`}>
+        <div ref={containerRef} className="brazil-map__canvas" />
+        {/* deck.gl renders pins to canvas, which isn't natively focusable/
+            screen-reader-accessible. This mirrors the same click behavior as a
+            real, tabbable, always-in-the-DOM control per pin — hidden until
+            focused so it doesn't visually duplicate the canvas dots. */}
+        <div className="brazil-map__a11y-pins">
+          {pins.map((pin) => (
+            <button
+              key={pin.id}
+              type="button"
+              className="brazil-map__a11y-pin"
+              aria-label={pin.name}
+              aria-pressed={pin.id === selectedAccountId}
+              onClick={() => onSelectAccount?.(pin.id)}
+            >
+              {pin.name}
+            </button>
+          ))}
+        </div>
       </div>
+      {has3DLoaded && (
+        <div className={`brazil-map__globe${is3D ? " brazil-map__globe--visible" : ""}`} aria-hidden={!is3D}>
+          <Brazil3D />
+        </div>
+      )}
+      <div className="brazil-map__3d-hint">Hold ⌃ Control for 3D terrain</div>
     </div>
   );
 }
