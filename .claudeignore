@@ -1,0 +1,8 @@
+node_modules/
+dist/
+*.tsbuildinfo
+package-lock.json
+*.xlsx
+*.csv
+*.js.map
+Pulse Brazil.html

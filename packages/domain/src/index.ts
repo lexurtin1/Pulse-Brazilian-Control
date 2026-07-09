@@ -5,7 +5,6 @@
  */
 export * from "./shared/index.js";
 export * from "./account/index.js";
-export * from "./theme/index.js";
 export * from "./signal/index.js";
 export * from "./document/index.js";
 export * from "./note/index.js";

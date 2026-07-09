@@ -16,7 +16,6 @@
     "typescript": "^5.5.0",
     "@types/node": "^22.0.0",
     "@types/pg": "^8.11.0",
-    "@types/node-cron": "^3.0.11",
     "tsx": "^4.19.0"
   },
   "dependencies": {
@@ -24,7 +23,6 @@
     "@pulse-brazil/application": "*",
     "@anthropic-ai/sdk": "^0.110.0",
     "pg": "^8.13.0",
-    "ulid": "^2.3.0",
-    "node-cron": "^3.0.3"
+    "ulid": "^2.3.0"
   }
 }

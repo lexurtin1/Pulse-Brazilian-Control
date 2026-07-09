@@ -21,7 +21,7 @@ function assertEnumMember<T extends Record<string, string>>(enumObject: T, value
   return value as T[keyof T];
 }
 
-/** Shared by TransitionDocumentState too — one mapping from SourceDocument to its DTO shape. */
+/** The one mapping from SourceDocument to its DTO shape. */
 export function toDocumentDto(document: SourceDocument): DocumentDto {
   return {
     id: document.id,

@@ -23,9 +23,7 @@
     "@gsap/react": "^2.1.1",
     "@deck.gl/core": "^9.0.38",
     "@deck.gl/layers": "^9.0.38",
-    "@deck.gl/mapbox": "^9.0.38",
-    "clsx": "^2.1.1",
-    "date-fns": "^4.1.0"
+    "@deck.gl/mapbox": "^9.0.38"
   },
   "devDependencies": {
     "@types/react": "^18.3.12",

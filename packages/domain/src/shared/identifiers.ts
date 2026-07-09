@@ -12,7 +12,6 @@ export type Brand<Value, Tag extends string> = Value & { readonly __brand: Tag }
 export type AccountId = Brand<string, "AccountId">;
 export type OfficeLocationId = Brand<string, "OfficeLocationId">;
 export type TemperatureAssessmentId = Brand<string, "TemperatureAssessmentId">;
-export type AccountRelationshipId = Brand<string, "AccountRelationshipId">;
 export type ThemeId = Brand<string, "ThemeId">;
 export type SignalId = Brand<string, "SignalId">;
 export type DocumentId = Brand<string, "DocumentId">;
@@ -30,9 +29,6 @@ export function asOfficeLocationId(value: string): OfficeLocationId {
 }
 export function asTemperatureAssessmentId(value: string): TemperatureAssessmentId {
   return value as TemperatureAssessmentId;
-}
-export function asAccountRelationshipId(value: string): AccountRelationshipId {
-  return value as AccountRelationshipId;
 }
 export function asThemeId(value: string): ThemeId {
   return value as ThemeId;

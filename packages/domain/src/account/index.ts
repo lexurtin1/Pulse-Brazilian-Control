@@ -6,5 +6,3 @@ export * from "./Coordinate.js";
 export * from "./LocationVerificationState.js";
 export * from "./TemperatureAssessment.js";
 export * from "./TemperatureBand.js";
-export * from "./AccountRelationship.js";
-export * from "./AccountRelationshipType.js";
