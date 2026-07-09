@@ -2,17 +2,21 @@ import {
   asAccountId,
   asDocumentId,
   asLocationRecordId,
+  asOfficeLocationId,
   asSignalId,
   ConnectorSource,
   Coordinate,
   DocumentType,
   IngestionState,
   LocationRecord,
+  LocationRecordKind,
+  LocationVerificationState,
+  OfficeLocation,
   Provenance,
   RawAddressInput,
   SourceDocument,
 } from "@pulse-brazil/domain";
-import type { Account } from "@pulse-brazil/domain";
+import type { Account, OfficeLocationId } from "@pulse-brazil/domain";
 import type { ImportLocationCsvResultDto, LocationCsvRowErrorDto } from "../../dto/location/ImportLocationCsvResultDto.js";
 import type { LocationRecordDto } from "../../dto/location/LocationRecordDto.js";
 import { ValidationError } from "../../errors/ApplicationError.js";
@@ -57,6 +61,32 @@ export function toLocationRecordDto(record: LocationRecord): LocationRecordDto {
     createdAt: record.createdAt.toISOString(),
     updatedAt: record.updatedAt.toISOString(),
   };
+}
+
+/**
+ * Mirrors a LocationRecord's resolved address/coordinate/verification state
+ * onto a fresh OfficeLocation, so the linked account's own primary pin
+ * matches what the CSV import actually resolved. Only called for
+ * confidently-linked, review-free rows — see the write-through gate in
+ * execute().
+ */
+function officeLocationFromLocationRecord(record: LocationRecord, id: OfficeLocationId): OfficeLocation {
+  const office = OfficeLocation.fromRawAddress({
+    id,
+    rawAddress: record.rawAddress.toSingleLine(),
+    isPrimary: true,
+  });
+
+  switch (record.verificationState) {
+    case LocationVerificationState.ManuallyOverridden:
+      return office.override(record.verifiedCoordinate!);
+    case LocationVerificationState.ManuallyVerified:
+      return office.verify(record.verifiedCoordinate!);
+    case LocationVerificationState.GeocodedPendingReview:
+      return office.withGeocodedCoordinate(record.unverifiedCoordinate!);
+    default:
+      return office;
+  }
 }
 
 export interface ImportLocationCsvCommand {
@@ -123,10 +153,12 @@ export class ImportLocationCsv {
     for (const draft of valid) {
       const reasons: string[] = [];
       let linkedAccountId: string | undefined;
+      let linkedViaExactId = false;
 
       if (draft.linkedAccountId) {
         if (accountsById.has(draft.linkedAccountId)) {
           linkedAccountId = draft.linkedAccountId;
+          linkedViaExactId = true;
         } else {
           reasons.push(`linked_account_id "${draft.linkedAccountId}" not found`);
         }
@@ -185,6 +217,28 @@ export class ImportLocationCsv {
 
         await this.locationRecords.save(record);
         records.push(toLocationRecordDto(record));
+
+        // Write through to the linked account's own primary pin — only for
+        // rows confidently linked by exact id, with no review flags of any
+        // kind, and a coordinate actually resolved. Anything less certain
+        // (name-match, duplicate, failed geocode) stays a LocationRecord
+        // only, since AccountMapPinDto has no reviewStatus concept and would
+        // silently present unreviewed data as trusted.
+        if (
+          reasons.length === 0 &&
+          linkedAccountId &&
+          linkedViaExactId &&
+          record.kind === LocationRecordKind.Office &&
+          record.isPrimary &&
+          record.bestAvailableCoordinate
+        ) {
+          const linkedAccount = accountsById.get(linkedAccountId)!;
+          const updatedOffice = officeLocationFromLocationRecord(record, asOfficeLocationId(this.idGenerator.newId()));
+          const nonPrimaryOffices = linkedAccount.officeLocations.filter((office) => !office.isPrimary);
+          const updatedAccount = linkedAccount.withOfficeLocations([...nonPrimaryOffices, updatedOffice]);
+          await this.accounts.save(updatedAccount);
+          accountsById.set(linkedAccountId, updatedAccount);
+        }
       } catch (error) {
         rejectedRows.push({
           rowNumber: draft.rowNumber,
