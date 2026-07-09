@@ -4,59 +4,48 @@
   height: 100%;
 }
 
-.marker-dot {
-  width: 12px;
-  height: 12px;
-  border-radius: var(--radius-full);
-  background: var(--color-temp-cold);
-  border: 2px solid var(--color-surface);
-  box-shadow: var(--shadow-sm);
-  cursor: pointer;
-}
-
-.marker-dot--hot {
+.brazil-map__canvas {
   position: relative;
-  background: var(--color-temp-hot);
+  width: 100%;
+  height: 100%;
 }
 
-.marker-dot--hot::after {
-  content: "";
+/* Accessible alternative to the deck.gl-rendered pin dots (canvas content
+   isn't focusable or screen-reader-visible). Each pin is a real button in
+   normal tab order; clipped to 1px until focused so sighted keyboard users
+   still see exactly where focus is without permanently duplicating the
+   canvas dots on screen. */
+.brazil-map__a11y-pins {
   position: absolute;
-  inset: -8px;
-  border-radius: var(--radius-full);
-  border: 2px solid var(--color-temp-hot);
-  animation: pulse-ring 2s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+  inset: auto auto var(--space-2) var(--space-2);
+  z-index: 1;
 }
 
-.marker-dot--warm {
-  background: var(--color-temp-warm);
+.brazil-map__a11y-pin {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: none;
+  padding: 0;
 }
 
-.marker-dot--cool {
-  background: var(--color-temp-cool);
-}
-
-.marker-dot--cold {
-  background: var(--color-temp-cold);
-}
-
-.marker-dot--selected {
-  outline: 2px solid var(--color-primary-active);
-  outline-offset: 2px;
-}
-
-.marker-dot:focus-visible {
-  outline: 2px solid var(--color-primary);
-  outline-offset: 3px;
-}
-
-@keyframes pulse-ring {
-  0% {
-    transform: scale(0.6);
-    opacity: 0.7;
-  }
-  100% {
-    transform: scale(1.9);
-    opacity: 0;
-  }
+.brazil-map__a11y-pin:focus-visible {
+  position: static;
+  display: block;
+  width: auto;
+  height: auto;
+  clip: auto;
+  margin-bottom: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  border: 2px solid var(--color-primary);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  cursor: pointer;
 }

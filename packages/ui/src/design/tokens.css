@@ -57,9 +57,18 @@
   --signal-other-text: #6b5f52;
   --signal-other-bg: #e8e2d9;
 
+  /* Map tiers — Brazil dominant, LATAM muted secondary context, world
+     barely-visible background massing. Shared between the live MapLibre
+     paint layers and the entry-animation SVG so both stages agree exactly. */
+  --color-map-brazil: #1a7a4a;
+  --color-map-latam: #c8c4bc;
+  --color-map-latam-opacity: 0.6;
+  --color-map-world: #e8e6e0;
+  --color-map-world-opacity: 0.3;
+
   /* Type */
-  --font-body: "Inter", system-ui, sans-serif;
-  --font-display: "Inter", system-ui, sans-serif;
+  --font-body: "DM Sans", "Inter", system-ui, sans-serif;
+  --font-display: "Instrument Serif", Georgia, serif;
 
   /* Scale */
   --text-xs: clamp(0.75rem, 0.7rem + 0.25vw, 0.875rem);
@@ -74,11 +83,13 @@
   --space-4: 1rem;
   --space-6: 1.5rem;
   --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
 
   /* Radius */
   --radius-sm: 0.375rem;
   --radius-md: 0.5rem;
-  --radius-lg: 0.75rem;
+  --radius-lg: 1rem;
   --radius-full: 9999px;
 
   /* Transitions */
@@ -87,13 +98,17 @@
   /* Shadows */
   --shadow-sm: 0 1px 2px oklch(0.2 0.01 80 / 0.06);
   --shadow-md: 0 4px 12px oklch(0.2 0.01 80 / 0.08);
+  --shadow-lg: 0 12px 32px oklch(0.2 0.01 80 / 0.1), 0 2px 6px oklch(0.2 0.01 80 / 0.06);
 }
 
 /*
  * Basic dark-mode fallback — system preference only, no manual toggle and
- * nothing persisted (no localStorage). Every custom property above is
- * redeclared here; nothing outside :root should ever branch on theme
- * directly. Two things that don't just "invert":
+ * nothing persisted (no localStorage). Nothing outside :root should ever
+ * branch on theme directly. Every custom property above is redeclared here
+ * except --font-*  (typeface choice isn't theme-dependent) and --color-map-*
+ * (the map tiers are deliberately fixed-value paint colors, not surface
+ * tokens — the live map isn't restyled for OS dark-mode preference).
+ * Two things that don't just "invert":
  *
  * 1. The accent gets brighter, not just carried over as-is. The light-mode
  *    --color-primary (#2d5a27) is a very dark green — great as a button
@@ -165,17 +180,19 @@
     /* Shadows — deeper + a faint light edge instead of a near-invisible dark blur */
     --shadow-sm: 0 1px 2px oklch(0 0 0 / 0.4), 0 0 0 1px oklch(1 0 0 / 0.04);
     --shadow-md: 0 4px 16px oklch(0 0 0 / 0.5), 0 0 0 1px oklch(1 0 0 / 0.06);
+    --shadow-lg: 0 16px 40px oklch(0 0 0 / 0.55), 0 0 0 1px oklch(1 0 0 / 0.07);
   }
 }
 
 /*
- * Looping/pulsing animations (the Hot-marker pulse ring) are disabled for
- * users who've asked the OS for reduced motion. One-shot entrance
- * transitions (drawer slide-in, sheet slide-up) are left alone — they're
- * brief and not the kind of motion this preference is meant to suppress.
+ * Looping/pulsing animations are disabled for users who've asked the OS for
+ * reduced motion. One-shot entrance transitions (drawer slide-in, sheet
+ * slide-up) are left alone — they're brief and not the kind of motion this
+ * preference is meant to suppress. The map's own Hot-marker pulse is
+ * deck.gl-driven (BrazilMap.tsx) and checks this same media query in JS
+ * rather than a CSS rule, since it's a canvas layer, not a DOM animation.
  */
 @media (prefers-reduced-motion: reduce) {
-  .marker-dot--hot::after,
   .signal-feed__temp-dot[data-band="Hot"]::after {
     animation: none !important;
   }

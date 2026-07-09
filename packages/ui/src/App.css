@@ -25,6 +25,15 @@
   min-height: 0;
 }
 
+/* Opacity is owned by EntryAnimation's GSAP timeline while the intro plays
+   (mounted early so tiles preload behind the reveal); defaults to visible
+   once there's no intro to hand off from. */
+.app-shell__map-live {
+  position: absolute;
+  inset: 0;
+  opacity: 1;
+}
+
 .app-shell--status {
   align-items: center;
   justify-content: center;
