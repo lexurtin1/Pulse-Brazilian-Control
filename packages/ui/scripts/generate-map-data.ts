@@ -61,20 +61,37 @@ function tierFor(id: string): Tier {
   return "world";
 }
 
-const topologyPath = require.resolve("world-atlas/countries-110m.json");
-const topology = JSON.parse(readFileSync(topologyPath, "utf-8")) as Topology;
-const countriesObject = topology.objects.countries as GeometryCollection;
+function loadCountries(file: string) {
+  const topologyPath = require.resolve(`world-atlas/${file}`);
+  const topology = JSON.parse(readFileSync(topologyPath, "utf-8")) as Topology;
+  const countriesObject = topology.objects.countries as GeometryCollection;
+  return feature(topology, countriesObject) as unknown as FeatureCollection<Geometry, { name: string }>;
+}
 
-const countriesFC = feature(topology, countriesObject) as unknown as FeatureCollection<
-  Geometry,
-  { name: string }
->;
+// LATAM/world are only ever seen zoomed out (continent/world view), where
+// 110m simplification is imperceptible and keeps the file small. Brazil is
+// the one shape users actually zoom into — at 110m its coastline is so
+// simplified it looks like blocky, jagged nonsense once you're in close
+// (see: the São Paulo screenshot that prompted this fix), so its geometry
+// comes from the 10m dataset instead. Mixing resolutions per-feature in one
+// FeatureCollection is fine; only Brazil's single feature pays the 10m cost.
+const coarseFC = loadCountries("countries-110m.json");
+const fineFC = loadCountries("countries-10m.json");
 
 // --- 1. Tiered GeoJSON for the live MapLibre map (Phase 3) ---------------
 
+const brazilFine = fineFC.features.find(
+  (f) => String((f as Feature & { id?: string | number }).id ?? "") === BRAZIL_ID,
+);
+if (!brazilFine) throw new Error("Brazil feature not found in world-atlas 10m topology");
+
+const restOfWorldCoarse = coarseFC.features.filter(
+  (f) => String((f as Feature & { id?: string | number }).id ?? "") !== BRAZIL_ID,
+);
+
 const tieredFC: FeatureCollection<Geometry, { name: string; tier: Tier }> = {
   type: "FeatureCollection",
-  features: countriesFC.features.map((f) => {
+  features: [brazilFine, ...restOfWorldCoarse].map((f) => {
     const id = String((f as Feature & { id?: string | number }).id ?? "");
     return {
       ...f,
@@ -89,15 +106,12 @@ writeFileSync(resolve(dataDir, "world-countries-tiers.geojson"), JSON.stringify(
 
 // --- 2. Precomputed SVG paths for the entry-animation silhouette (Phase 2) ---
 
-const brazilFeature = countriesFC.features.find(
-  (f) => String((f as Feature & { id?: string | number }).id ?? "") === BRAZIL_ID,
-);
-if (!brazilFeature) throw new Error("Brazil feature not found in world-atlas topology");
+const brazilFeature = brazilFine;
 
-const latamFeatures = countriesFC.features.filter(
+const latamFeatures = coarseFC.features.filter(
   (f) => LATAM_IDS.has(String((f as Feature & { id?: string | number }).id ?? "")),
 );
-const worldFeatures = countriesFC.features.filter((f) => {
+const worldFeatures = coarseFC.features.filter((f) => {
   const id = String((f as Feature & { id?: string | number }).id ?? "");
   return id !== BRAZIL_ID && !LATAM_IDS.has(id);
 });

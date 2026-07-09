@@ -98,13 +98,22 @@ export function BrazilMap({ pins, selectedAccountId, onSelectAccount }: BrazilMa
       const latamOpacity = cssOpacity("--color-map-latam-opacity");
       const worldOpacity = cssOpacity("--color-map-world-opacity");
 
+      // Country fills read as the "dominant color story" at country/continent
+      // zoom, but a flat full-opacity fill at street level just paints over
+      // roads and cities — it looks like broken rendering, not design. Each
+      // layer fades out over zoom instead of holding one opacity everywhere.
+      // LATAM/world are "context" and recede first; Brazil (the identity
+      // color) fades further but never all the way to invisible.
       map.addLayer(
         {
           id: "world-massing",
           type: "fill",
           source: "country-tiers",
           filter: ["==", ["get", "tier"], "world"],
-          paint: { "fill-color": `rgb(${worldColor.join(",")})`, "fill-opacity": worldOpacity },
+          paint: {
+            "fill-color": `rgb(${worldColor.join(",")})`,
+            "fill-opacity": ["interpolate", ["linear"], ["zoom"], 3, worldOpacity, 6, 0],
+          },
         },
         firstLayerId,
       );
@@ -114,7 +123,10 @@ export function BrazilMap({ pins, selectedAccountId, onSelectAccount }: BrazilMa
           type: "fill",
           source: "country-tiers",
           filter: ["==", ["get", "tier"], "latam"],
-          paint: { "fill-color": `rgb(${latamColor.join(",")})`, "fill-opacity": latamOpacity },
+          paint: {
+            "fill-color": `rgb(${latamColor.join(",")})`,
+            "fill-opacity": ["interpolate", ["linear"], ["zoom"], 3, latamOpacity, 7, 0],
+          },
         },
         firstLayerId,
       );
@@ -124,7 +136,10 @@ export function BrazilMap({ pins, selectedAccountId, onSelectAccount }: BrazilMa
           type: "fill",
           source: "country-tiers",
           filter: ["==", ["get", "tier"], "brazil"],
-          paint: { "fill-color": `rgb(${brazilColor.join(",")})`, "fill-opacity": 1 },
+          paint: {
+            "fill-color": `rgb(${brazilColor.join(",")})`,
+            "fill-opacity": ["interpolate", ["linear"], ["zoom"], 3, 1, 6, 0.5, 9, 0.12],
+          },
         },
         firstLayerId,
       );
@@ -154,6 +169,22 @@ export function BrazilMap({ pins, selectedAccountId, onSelectAccount }: BrazilMa
     if (!overlay) return;
 
     function buildLayers(pulsePhase: number) {
+      // A light "backing plate" behind every dot, always lighter than any
+      // fill tier (Brazil green, LATAM ash, or plain basemap) so the colored
+      // dot on top reads clearly regardless of what's underneath — without
+      // this, a dark-green Hot pin all but disappears against the Brazil
+      // country fill.
+      const halo = new ScatterplotLayer<AccountMapPinDto>({
+        id: "account-pins-halo",
+        data: pins,
+        filled: true,
+        stroked: false,
+        radiusUnits: "pixels",
+        getPosition: (pin) => [pin.coordinate.longitude, pin.coordinate.latitude],
+        getRadius: 12,
+        getFillColor: [...cssColor("--color-surface"), 235],
+      });
+
       const base = new ScatterplotLayer<AccountMapPinDto>({
         id: "account-pins",
         data: pins,
@@ -163,7 +194,7 @@ export function BrazilMap({ pins, selectedAccountId, onSelectAccount }: BrazilMa
         radiusUnits: "pixels",
         lineWidthUnits: "pixels",
         getPosition: (pin) => [pin.coordinate.longitude, pin.coordinate.latitude],
-        getRadius: 7,
+        getRadius: 9,
         getFillColor: (pin) => cssColor(TEMP_BAND_VAR[pin.temperatureBand ?? "Cold"] ?? "--color-temp-cold"),
         getLineColor: (pin) => (pin.id === selectedAccountId ? cssColor("--color-primary-active") : cssColor("--color-surface")),
         getLineWidth: (pin) => (pin.id === selectedAccountId ? 3 : 2),
@@ -186,12 +217,12 @@ export function BrazilMap({ pins, selectedAccountId, onSelectAccount }: BrazilMa
         radiusUnits: "pixels",
         lineWidthUnits: "pixels",
         getPosition: (pin) => [pin.coordinate.longitude, pin.coordinate.latitude],
-        getRadius: 8 + pulsePhase * 22,
+        getRadius: 10 + pulsePhase * 22,
         getLineColor: [...hotColor, Math.round((1 - pulsePhase) * 180)],
         getLineWidth: 2,
       });
 
-      return [pulse, base];
+      return [halo, pulse, base];
     }
 
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
