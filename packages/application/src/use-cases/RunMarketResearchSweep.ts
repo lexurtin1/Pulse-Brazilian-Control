@@ -59,7 +59,12 @@ export class RunMarketResearchSweep {
 
   async execute(_command: RunMarketResearchSweepCommand): Promise<RunMarketResearchSweepResult> {
     const allAccounts = await this.accounts.findAll();
-    const activeAccounts = allAccounts.filter((account) => account.status === AccountStatus.Active);
+    // Researched: accounts still being pursued or engaged (Prospect, Active).
+    // Skipped: Dormant/Churned — no value spending research calls on
+    // relationships that are already given up on.
+    const activeAccounts = allAccounts.filter(
+      (account) => account.status === AccountStatus.Active || account.status === AccountStatus.Prospect,
+    );
 
     let signalsCreated = 0;
     const errors: RunMarketResearchSweepError[] = [];
