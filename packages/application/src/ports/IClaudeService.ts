@@ -36,7 +36,36 @@ export interface ClaudeInsightResult {
   recommendedAction?: ClaudeRecommendedActionResult;
 }
 
+/** Either raw text or a base64-encoded PDF — Claude reads a PDF natively as a document content block, no parsing library needed. */
+export type ClaudeDocumentContent = { kind: "text"; text: string } | { kind: "pdf"; base64Data: string };
+
+/**
+ * One candidate signal extracted from a document. `accountId` is null when
+ * Claude found no match in the `knownAccounts` list it was given — never a
+ * freely-invented id. Same primitives-only boundary convention as
+ * ClaudeInsightResult: this has not yet been validated against domain
+ * invariants or cross-checked against the real account list.
+ */
+export interface ClaudeExtractedSignalResult {
+  accountId: string | null;
+  title: string;
+  summary: string;
+  type: string;
+  confidence: number;
+  dateObserved: string | null;
+}
+
+export interface ClaudeExtractSignalsResult {
+  signals: ClaudeExtractedSignalResult[];
+  /** Company names the document mentioned that matched none of the supplied knownAccounts. */
+  unmatchedAccountMentions: string[];
+}
+
 /** The one port through which the application layer talks to Claude. No SDK, no HTTP client — just this contract. */
 export interface IClaudeService {
   generateInsight(params: { contextBundle: ContextBundle; promptProfile: PromptProfile }): Promise<ClaudeInsightResult>;
+  extractSignalsFromDocument(params: {
+    documentContent: ClaudeDocumentContent;
+    knownAccounts: { id: string; name: string }[];
+  }): Promise<ClaudeExtractSignalsResult>;
 }

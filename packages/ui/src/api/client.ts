@@ -4,6 +4,7 @@ import type {
   AccountSummaryDto,
   ImportLocationCsvResultDto,
   LocationRecordMapPinDto,
+  ProcessDocumentUploadResultDto,
   SignalDto,
 } from "@pulse-brazil/application";
 
@@ -55,4 +56,13 @@ export function importLocationCsv(params: {
   uploadedBy?: string;
 }): Promise<ImportLocationCsvResultDto> {
   return postJson("/api/locations/import", params);
+}
+
+export function ingestDocument(params: {
+  content: string;
+  mimeType: "text/plain" | "application/pdf";
+  connectorSource: string;
+  originalFilename?: string;
+}): Promise<ProcessDocumentUploadResultDto> {
+  return postJson("/api/documents/ingest", params);
 }

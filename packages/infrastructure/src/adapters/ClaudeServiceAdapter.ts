@@ -2,11 +2,12 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import Anthropic from "@anthropic-ai/sdk";
-import type { ClaudeInsightResult, IClaudeService } from "@pulse-brazil/application";
+import type { ClaudeDocumentContent, ClaudeExtractSignalsResult, ClaudeInsightResult, IClaudeService } from "@pulse-brazil/application";
 import type { ContextBundle, EvidenceReference, PromptProfile } from "@pulse-brazil/domain";
 
 const MODEL = "claude-opus-4-8";
 const TOOL_NAME = "record_insight";
+const EXTRACT_SIGNALS_TOOL_NAME = "extract_signals";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 /** packages/infrastructure/src/adapters -> repo root/claude/prompts, whether running from src (tsx) or a future dist build (same directory depth). */
@@ -68,6 +69,61 @@ interface RecordInsightToolInput {
   recommendedAction: { description: string; dueDate: string | null } | null;
 }
 
+const EXTRACT_SIGNALS_SCHEMA: Anthropic.Tool.InputSchema = {
+  type: "object",
+  properties: {
+    signals: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          accountId: { type: ["string", "null"] },
+          title: { type: "string" },
+          summary: { type: "string" },
+          type: {
+            type: "string",
+            enum: [
+              "RegulatoryChange",
+              "CompetitiveIntelligence",
+              "MarketStructure",
+              "CrossBorder",
+              "Tokenisation",
+              "ETF",
+              "OrderRouting",
+              "AccountSpecific",
+              "MarketResearch",
+              "Other",
+            ],
+          },
+          confidence: { type: "number" },
+          dateObserved: { type: ["string", "null"] },
+        },
+        required: ["accountId", "title", "summary", "type", "confidence", "dateObserved"],
+        additionalProperties: false,
+      },
+    },
+    unmatchedAccountMentions: {
+      type: "array",
+      items: { type: "string" },
+    },
+  },
+  required: ["signals", "unmatchedAccountMentions"],
+  additionalProperties: false,
+};
+
+/** The shape Claude's tool_use.input arrives in for extract_signals — mirrors ClaudeExtractSignalsResult field-for-field. */
+interface ExtractSignalsToolInput {
+  signals: {
+    accountId: string | null;
+    title: string;
+    summary: string;
+    type: string;
+    confidence: number;
+    dateObserved: string | null;
+  }[];
+  unmatchedAccountMentions: string[];
+}
+
 function debugLog(label: string, value: unknown): void {
   if (process.env.DEBUG?.includes("claude")) {
     console.debug(`[ClaudeServiceAdapter] ${label}`, value);
@@ -99,6 +155,20 @@ function renderContextBundleAsMarkdown(bundle: ContextBundle): string {
     lines.push(...bundle.evidence.map(renderEvidenceReference));
   }
   return lines.join("\n");
+}
+
+function toExtractSignalsResult(input: ExtractSignalsToolInput): ClaudeExtractSignalsResult {
+  return {
+    signals: input.signals.map((s) => ({
+      accountId: s.accountId,
+      title: s.title,
+      summary: s.summary,
+      type: s.type,
+      confidence: s.confidence,
+      dateObserved: s.dateObserved,
+    })),
+    unmatchedAccountMentions: input.unmatchedAccountMentions,
+  };
 }
 
 function toRecordInsightResult(input: RecordInsightToolInput): ClaudeInsightResult {
@@ -174,13 +244,70 @@ export class ClaudeServiceAdapter implements IClaudeService {
     return toRecordInsightResult(toolUse.input as RecordInsightToolInput);
   }
 
-  private async loadSystemPrompt(promptProfile: PromptProfile): Promise<string> {
-    const filePath = path.join(this.promptsBaseDir, promptProfile.name, promptProfile.version, "system.md");
+  async extractSignalsFromDocument(params: {
+    documentContent: ClaudeDocumentContent;
+    knownAccounts: { id: string; name: string }[];
+  }): Promise<ClaudeExtractSignalsResult> {
+    const systemPrompt = await this.loadSystemPrompt({ name: "document-signal-extraction", version: "v1" });
+
+    const knownAccountsText =
+      params.knownAccounts.length > 0 ? params.knownAccounts.map((a) => `- ${a.id}: ${a.name}`).join("\n") : "(none)";
+    const introText = `# Known Accounts\n${knownAccountsText}\n\n# Document\n`;
+
+    const content: Anthropic.MessageParam["content"] =
+      params.documentContent.kind === "pdf"
+        ? [
+            { type: "text", text: introText },
+            {
+              type: "document",
+              source: { type: "base64", media_type: "application/pdf", data: params.documentContent.base64Data },
+            },
+          ]
+        : [{ type: "text", text: introText + params.documentContent.text }];
+
+    let response: Anthropic.Message;
+    try {
+      response = await this.client.messages.create({
+        model: MODEL,
+        max_tokens: 4096,
+        thinking: { type: "adaptive" },
+        system: systemPrompt,
+        messages: [{ role: "user", content }],
+        tools: [
+          {
+            name: EXTRACT_SIGNALS_TOOL_NAME,
+            description:
+              "Record every discrete signal extracted from the document, each attributed to a known account if clearly identifiable.",
+            input_schema: EXTRACT_SIGNALS_SCHEMA,
+            strict: true,
+          },
+        ],
+        tool_choice: { type: "tool", name: EXTRACT_SIGNALS_TOOL_NAME },
+      });
+    } catch (error) {
+      throw new Error(`Claude request failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+
+    const toolUse = response.content.find(
+      (block): block is Anthropic.ToolUseBlock => block.type === "tool_use" && block.name === EXTRACT_SIGNALS_TOOL_NAME,
+    );
+    if (!toolUse) {
+      throw new Error(`Claude did not return a ${EXTRACT_SIGNALS_TOOL_NAME} tool call (stop_reason: ${response.stop_reason})`);
+    }
+
+    debugLog("raw tool_use.input (extract_signals)", toolUse.input);
+
+    return toExtractSignalsResult(toolUse.input as ExtractSignalsToolInput);
+  }
+
+  /** Only needs name/version to locate the file on disk — accepts the full domain PromptProfile (structurally compatible) or a plain literal. */
+  private async loadSystemPrompt(profile: { name: string; version: string }): Promise<string> {
+    const filePath = path.join(this.promptsBaseDir, profile.name, profile.version, "system.md");
     try {
       return await readFile(filePath, "utf-8");
     } catch (error) {
       throw new Error(
-        `Prompt file not found for profile "${promptProfile.name}" version "${promptProfile.version}" at ${filePath}: ${
+        `Prompt file not found for profile "${profile.name}" version "${profile.version}" at ${filePath}: ${
           error instanceof Error ? error.message : String(error)
         }`,
       );

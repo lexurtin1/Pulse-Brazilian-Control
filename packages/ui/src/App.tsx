@@ -66,6 +66,22 @@ export function App() {
       .catch((error) => console.error("Failed to refresh location pins", error));
   }, []);
 
+  // After a document ingest, re-fetch the signal feed so newly extracted
+  // signals show up without a full page reload.
+  const refreshSignals = useCallback(() => {
+    fetchRecentSignals()
+      .then(setSignals)
+      .catch((error) => console.error("Failed to refresh signals", error));
+  }, []);
+
+  // One callback for both upload paths — refetching signals after a
+  // location-only CSV import is cheap and harmless, and keeps UploadFAB from
+  // needing to know which backend path it took.
+  const refreshAfterUpload = useCallback(() => {
+    refreshLocationPins();
+    refreshSignals();
+  }, [refreshLocationPins, refreshSignals]);
+
   const accountsById = useMemo(() => new Map(accounts.map((account) => [account.id, account])), [accounts]);
 
   const showIntro = status === "ready" && !introDone;
@@ -127,7 +143,7 @@ export function App() {
           <PulseLogo />
         </motion.div>
         <motion.div variants={shellItemVariants}>
-          <UploadFAB accountsForLinking={accounts} onImported={refreshLocationPins} />
+          <UploadFAB accountsForLinking={accounts} onImported={refreshAfterUpload} />
         </motion.div>
       </motion.div>
       {showIntro && <EntryAnimation mapRef={mapWrapRef} onComplete={() => setIntroDone(true)} />}

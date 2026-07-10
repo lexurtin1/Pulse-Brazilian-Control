@@ -1,15 +1,15 @@
 import { useRef, useState } from "react";
 import type { DragEvent, FormEvent } from "react";
 import { Plus, X, UploadCloud } from "lucide-react";
-import type { AccountSummaryDto, ImportLocationCsvResultDto } from "@pulse-brazil/application";
-import { importLocationCsv } from "../../api/client";
+import type { AccountSummaryDto, ImportLocationCsvResultDto, ProcessDocumentUploadResultDto } from "@pulse-brazil/application";
+import { importLocationCsv, ingestDocument } from "../../api/client";
 import { useDialogA11y } from "../../hooks/useDialogA11y";
 import { formatEnumLabel } from "../../utils/formatEnumLabel";
 import "./UploadFAB.css";
 
 interface UploadFABProps {
   accountsForLinking: AccountSummaryDto[];
-  /** Called after a CSV import completes successfully, so the caller can refresh map pins. */
+  /** Called after a CSV import or document ingest completes successfully, so the caller can refresh map pins / the signal feed. */
   onImported?: () => void;
 }
 
@@ -17,13 +17,30 @@ const SOURCE_TYPES = ["DocumentUpload", "EmailForward", "ManualEntry", "WebResea
 const TITLE_ID = "upload-sheet-title";
 const SOURCE_TYPE_LEGEND_ID = "upload-sheet-source-type-legend";
 
+type SubmitResult =
+  | { kind: "csv"; data: ImportLocationCsvResultDto }
+  | { kind: "document"; data: ProcessDocumentUploadResultDto };
+
+/** Strips the "data:<mime>;base64," prefix FileReader.readAsDataURL adds. */
+function readFileAsBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      resolve(result.slice(result.indexOf(",") + 1));
+    };
+    reader.onerror = () => reject(reader.error ?? new Error("Failed to read file"));
+    reader.readAsDataURL(file);
+  });
+}
+
 export function UploadFAB({ accountsForLinking, onImported }: UploadFABProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isDragActive, setIsDragActive] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [submitResult, setSubmitResult] = useState<ImportLocationCsvResultDto | null>(null);
+  const [submitResult, setSubmitResult] = useState<SubmitResult | null>(null);
   const sheetRef = useRef<HTMLDivElement>(null);
 
   function close() {
@@ -49,29 +66,43 @@ export function UploadFAB({ accountsForLinking, onImported }: UploadFABProps) {
     }
   }
 
-  async function handleSubmit(event: FormEvent) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     if (!file) {
       setSubmitError("Choose a file first.");
       return;
     }
-    if (!file.name.toLowerCase().endsWith(".csv")) {
-      // Location CSV import is the only ingestion path actually wired to a
-      // backend today — say so plainly rather than pretending the sheet
-      // accepts any file type.
-      setSubmitError("Only CSV location files can be uploaded right now.");
+
+    const lowerName = file.name.toLowerCase();
+    const isCsv = lowerName.endsWith(".csv");
+    const isPdf = lowerName.endsWith(".pdf");
+    const isText = lowerName.endsWith(".txt") || lowerName.endsWith(".md");
+    if (!isCsv && !isPdf && !isText) {
+      setSubmitError("Only .csv, .txt, .md, and .pdf files can be uploaded right now.");
       return;
     }
+
+    const connectorSource = String(new FormData(event.currentTarget).get("sourceType") ?? SOURCE_TYPES[0]);
 
     setIsSubmitting(true);
     setSubmitError(null);
     setSubmitResult(null);
 
     try {
-      const csvText = await file.text();
-      const result = await importLocationCsv({ csvText, originalFilename: file.name });
-      setSubmitResult(result);
+      if (isCsv) {
+        const csvText = await file.text();
+        const data = await importLocationCsv({ csvText, originalFilename: file.name });
+        setSubmitResult({ kind: "csv", data });
+      } else if (isPdf) {
+        const content = await readFileAsBase64(file);
+        const data = await ingestDocument({ content, mimeType: "application/pdf", connectorSource, originalFilename: file.name });
+        setSubmitResult({ kind: "document", data });
+      } else {
+        const content = await file.text();
+        const data = await ingestDocument({ content, mimeType: "text/plain", connectorSource, originalFilename: file.name });
+        setSubmitResult({ kind: "document", data });
+      }
       setFile(null);
       onImported?.();
     } catch (error) {
@@ -138,7 +169,7 @@ export function UploadFAB({ accountsForLinking, onImported }: UploadFABProps) {
                 <p>{file?.name ?? "Drag a file here, or click to browse"}</p>
                 <input
                   type="file"
-                  accept=".csv,text/csv"
+                  accept=".csv,text/csv,.txt,text/plain,.md,.pdf,application/pdf"
                   className="upload-sheet__file-input"
                   aria-label="Choose file"
                   onChange={(event) => {
@@ -154,6 +185,12 @@ export function UploadFAB({ accountsForLinking, onImported }: UploadFABProps) {
                 <p className="upload-sheet__hint">
                   Detected as a Brazil location CSV — imported directly. Source type and account link below aren't used for
                   this format; each row declares its own kind and (optionally) its own linked account.
+                </p>
+              )}
+              {file && !file.name.toLowerCase().endsWith(".csv") && (
+                <p className="upload-sheet__hint">
+                  Claude will read this document and extract signals for accounts already in Pulse — it won't create new
+                  accounts, and anything it can't match to an existing account is reported, not guessed at.
                 </p>
               )}
 
@@ -202,25 +239,55 @@ export function UploadFAB({ accountsForLinking, onImported }: UploadFABProps) {
                 </p>
               )}
 
-              {submitResult && (
+              {submitResult?.kind === "csv" && (
                 <div className="upload-sheet__result" role="status">
                   <p>
-                    <strong>{submitResult.acceptedRows}</strong> of {submitResult.totalRows} row
-                    {submitResult.totalRows === 1 ? "" : "s"} imported.
+                    <strong>{submitResult.data.acceptedRows}</strong> of {submitResult.data.totalRows} row
+                    {submitResult.data.totalRows === 1 ? "" : "s"} imported.
                   </p>
-                  {submitResult.reviewRequiredCount > 0 && (
-                    <p>{submitResult.reviewRequiredCount} record(s) flagged for review.</p>
+                  {submitResult.data.reviewRequiredCount > 0 && (
+                    <p>{submitResult.data.reviewRequiredCount} record(s) flagged for review.</p>
                   )}
-                  {submitResult.rejectedRows.length > 0 && (
+                  {submitResult.data.rejectedRows.length > 0 && (
                     <details>
                       <summary>
-                        {submitResult.rejectedRows.length} row{submitResult.rejectedRows.length === 1 ? "" : "s"} rejected
+                        {submitResult.data.rejectedRows.length} row{submitResult.data.rejectedRows.length === 1 ? "" : "s"}{" "}
+                        rejected
                       </summary>
                       <ul className="upload-sheet__result-errors">
-                        {submitResult.rejectedRows.map((row) => (
+                        {submitResult.data.rejectedRows.map((row) => (
                           <li key={row.rowNumber}>
                             Row {row.rowNumber}: {row.errors.join("; ")}
                           </li>
+                        ))}
+                      </ul>
+                    </details>
+                  )}
+                </div>
+              )}
+
+              {submitResult?.kind === "document" && (
+                <div className="upload-sheet__result" role="status">
+                  <p>
+                    <strong>{submitResult.data.signalsCreated.length}</strong> signal
+                    {submitResult.data.signalsCreated.length === 1 ? "" : "s"} extracted.
+                  </p>
+                  {submitResult.data.signalsCreated.length > 0 && (
+                    <ul className="upload-sheet__result-errors">
+                      {submitResult.data.signalsCreated.map((signal) => (
+                        <li key={signal.id}>{signal.title}</li>
+                      ))}
+                    </ul>
+                  )}
+                  {submitResult.data.unmatchedAccountMentions.length > 0 && (
+                    <details>
+                      <summary>
+                        {submitResult.data.unmatchedAccountMentions.length} mention
+                        {submitResult.data.unmatchedAccountMentions.length === 1 ? "" : "s"} didn't match a known account
+                      </summary>
+                      <ul className="upload-sheet__result-errors">
+                        {submitResult.data.unmatchedAccountMentions.map((name) => (
+                          <li key={name}>{name}</li>
                         ))}
                       </ul>
                     </details>
