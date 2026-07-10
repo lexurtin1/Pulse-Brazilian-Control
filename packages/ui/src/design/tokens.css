@@ -57,14 +57,23 @@
   --signal-other-text: #6b5f52;
   --signal-other-bg: #e8e2d9;
 
-  /* Map tiers — Brazil dominant, LATAM muted secondary context, world
-     barely-visible background massing. Shared between the live MapLibre
-     paint layers and the entry-animation SVG so both stages agree exactly. */
+  /* Map tiers — used by the entry-animation SVG reveal only. The live map
+     itself dropped the Brazil/LATAM/world fill wash: with only Brazil ever
+     shown on screen, a full-country green fill added no information and
+     just made pins harder to see against it (see BrazilMap.tsx). */
   --color-map-brazil: #1a7a4a;
   --color-map-latam: #c8c4bc;
   --color-map-latam-opacity: 0.6;
   --color-map-world: #e8e6e0;
   --color-map-world-opacity: 0.3;
+
+  /* Location-record marker colors (BrazilMap.tsx) — deliberately distinct
+     from --color-primary/--color-temp-* (account temperature) so an Office
+     pin and a Hot account never render as the same color and get confused
+     for one another. */
+  --color-location-office: #2f5f9e;
+  --color-location-event: #b3631f;
+  --color-location-visit: #7a3f8f;
 
   /* Type */
   --font-body: "DM Sans", "Inter", system-ui, sans-serif;
@@ -176,6 +185,11 @@
     --signal-marketresearch-bg: #2c2d30;
     --signal-other-text: #a8927e;
     --signal-other-bg: #332c24;
+
+    /* Location-record marker colors — brightened for contrast against a dark map, same treatment as the accent above */
+    --color-location-office: #6a9bd8;
+    --color-location-event: #d98a4a;
+    --color-location-visit: #a565ba;
 
     /* Shadows — deeper + a faint light edge instead of a near-invisible dark blur */
     --shadow-sm: 0 1px 2px oklch(0 0 0 / 0.4), 0 0 0 1px oklch(1 0 0 / 0.04);
