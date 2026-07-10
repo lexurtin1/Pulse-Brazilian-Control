@@ -6,7 +6,9 @@ import { BrazilMap } from "./components/BrazilMap/BrazilMap";
 import { MapLegend } from "./components/MapLegend/MapLegend";
 import { PulseLogo } from "./components/PulseLogo/PulseLogo";
 import { UploadFAB } from "./components/UploadFAB/UploadFAB";
+import { CreateAccountFAB } from "./components/CreateAccountFAB/CreateAccountFAB";
 import { AccountDossier } from "./components/AccountDossier/AccountDossier";
+import { LocationPinDetail } from "./components/LocationPinDetail/LocationPinDetail";
 import { EntryAnimation } from "./components/EntryAnimation/EntryAnimation";
 import { fetchAccountMapPins, fetchAccounts, fetchLocationMapPins, fetchRecentSignals } from "./api/client";
 import "./App.css";
@@ -28,6 +30,7 @@ const shellItemVariants = {
 export function App() {
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
   const [dossierAccountId, setDossierAccountId] = useState<string | null>(null);
+  const [selectedLocationPin, setSelectedLocationPin] = useState<LocationRecordMapPinDto | null>(null);
   const [accounts, setAccounts] = useState<AccountSummaryDto[]>([]);
   const [mapPins, setMapPins] = useState<AccountMapPinDto[]>([]);
   const [locationPins, setLocationPins] = useState<LocationRecordMapPinDto[]>([]);
@@ -82,6 +85,14 @@ export function App() {
     refreshSignals();
   }, [refreshLocationPins, refreshSignals]);
 
+  // After creating an account, re-fetch the account list so it's available
+  // wherever accounts are listed (e.g. UploadFAB's "link to account" select).
+  const refreshAccounts = useCallback(() => {
+    fetchAccounts()
+      .then(setAccounts)
+      .catch((error) => console.error("Failed to refresh accounts", error));
+  }, []);
+
   const accountsById = useMemo(() => new Map(accounts.map((account) => [account.id, account])), [accounts]);
 
   const showIntro = status === "ready" && !introDone;
@@ -132,6 +143,7 @@ export function App() {
                 locationPins={locationPins}
                 selectedAccountId={selectedAccountId}
                 onSelectAccount={handleSelectAccount}
+                onSelectLocationPin={setSelectedLocationPin}
               />
             </div>
             <motion.div variants={shellItemVariants}>
@@ -145,9 +157,20 @@ export function App() {
         <motion.div variants={shellItemVariants}>
           <UploadFAB accountsForLinking={accounts} onImported={refreshAfterUpload} />
         </motion.div>
+        <motion.div variants={shellItemVariants}>
+          <CreateAccountFAB onCreated={refreshAccounts} />
+        </motion.div>
       </motion.div>
       {showIntro && <EntryAnimation mapRef={mapWrapRef} onComplete={() => setIntroDone(true)} />}
       <AccountDossier accountId={dossierAccountId} onClose={() => setDossierAccountId(null)} />
+      <LocationPinDetail
+        pin={selectedLocationPin}
+        onClose={() => setSelectedLocationPin(null)}
+        onSelectAccount={(accountId) => {
+          setSelectedLocationPin(null);
+          handleSelectAccount(accountId);
+        }}
+      />
     </>
   );
 }

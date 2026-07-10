@@ -10,6 +10,7 @@ interface BrazilMapProps {
   locationPins?: LocationRecordMapPinDto[];
   selectedAccountId: string | null;
   onSelectAccount?: (accountId: string) => void;
+  onSelectLocationPin?: (pin: LocationRecordMapPinDto) => void;
 }
 
 // One fixed color per LocationRecordKind — deliberately distinct from
@@ -67,13 +68,15 @@ function cssColor(varName: string): [number, number, number] {
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
 }
 
-export function BrazilMap({ pins, locationPins = [], selectedAccountId, onSelectAccount }: BrazilMapProps) {
+export function BrazilMap({ pins, locationPins = [], selectedAccountId, onSelectAccount, onSelectLocationPin }: BrazilMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const overlayRef = useRef<MapboxOverlay | null>(null);
 
   const onSelectAccountRef = useRef(onSelectAccount);
   onSelectAccountRef.current = onSelectAccount;
+  const onSelectLocationPinRef = useRef(onSelectLocationPin);
+  onSelectLocationPinRef.current = onSelectLocationPin;
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -216,6 +219,7 @@ export function BrazilMap({ pins, locationPins = [], selectedAccountId, onSelect
       const locationMarkers = new ScatterplotLayer<LocationRecordMapPinDto>({
         id: "location-record-pins",
         data: locationPins,
+        pickable: true,
         filled: true,
         stroked: true,
         radiusUnits: "pixels",
@@ -228,6 +232,9 @@ export function BrazilMap({ pins, locationPins = [], selectedAccountId, onSelect
         },
         getLineColor: [...cssColor("--color-surface"), 255],
         getLineWidth: 2,
+        onClick: (info) => {
+          if (info.object) onSelectLocationPinRef.current?.(info.object);
+        },
       });
 
       return [accountShadow, locationShadow, pulse, base, locationMarkers];
@@ -286,6 +293,17 @@ export function BrazilMap({ pins, locationPins = [], selectedAccountId, onSelect
             onClick={() => onSelectAccount?.(pin.id)}
           >
             {pin.name}
+          </button>
+        ))}
+        {locationPins.map((pin) => (
+          <button
+            key={pin.id}
+            type="button"
+            className="brazil-map__a11y-pin"
+            aria-label={`${pin.label} (${pin.kind})`}
+            onClick={() => onSelectLocationPin?.(pin)}
+          >
+            {pin.label}
           </button>
         ))}
       </div>

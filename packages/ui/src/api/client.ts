@@ -66,3 +66,17 @@ export function ingestDocument(params: {
 }): Promise<ProcessDocumentUploadResultDto> {
   return postJson("/api/documents/ingest", params);
 }
+
+export function createAccount(params: {
+  name: string;
+  accountType: string;
+  status?: string;
+  city?: string;
+}): Promise<AccountSummaryDto> {
+  return postJson("/api/accounts", {
+    name: params.name,
+    accountType: params.accountType,
+    status: params.status,
+    geographicScope: { countryCode: "BR", city: params.city },
+  });
+}

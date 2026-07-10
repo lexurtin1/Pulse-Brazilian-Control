@@ -1,0 +1,185 @@
+.create-account-fab {
+  position: fixed;
+  bottom: var(--space-8);
+  right: calc(var(--space-8) + 56px + var(--space-3));
+  z-index: 30;
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: var(--shadow-md);
+  transition: background-color var(--transition-interactive), transform var(--transition-interactive);
+}
+
+.create-account-fab:hover {
+  background: var(--color-surface-2);
+  transform: translateY(-1px);
+}
+
+.create-account-fab:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 3px;
+}
+
+.create-account-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: oklch(0.2 0.01 80 / 0.25);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.create-account-sheet {
+  width: 100%;
+  max-width: 560px;
+  max-height: 85vh;
+  overflow-y: auto;
+  background: var(--color-surface);
+  border-top-left-radius: var(--radius-lg);
+  border-top-right-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  padding: 0 var(--space-6) var(--space-6);
+  animation: slide-up var(--transition-interactive);
+}
+
+.create-account-sheet:focus-visible {
+  outline: none;
+}
+
+.create-account-sheet__handle-row {
+  position: sticky;
+  top: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-3) 0;
+  background: var(--color-surface);
+}
+
+.create-account-sheet__handle {
+  width: 36px;
+  height: 4px;
+  border-radius: var(--radius-full);
+  background: var(--color-border);
+}
+
+.create-account-sheet__close {
+  position: absolute;
+  right: 0;
+  top: var(--space-2);
+  border: none;
+  background: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+}
+
+.create-account-sheet__close:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.create-account-sheet__title {
+  margin: 0 0 var(--space-4);
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.create-account-sheet__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.create-account-sheet__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.create-account-sheet__field input,
+.create-account-sheet__field select {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-2);
+  color: var(--color-text);
+  font-size: var(--text-sm);
+}
+
+.create-account-sheet__field input:focus-visible,
+.create-account-sheet__field select:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 1px;
+}
+
+.create-account-sheet__hint {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--color-primary-highlight);
+  color: var(--color-primary);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+}
+
+.create-account-sheet__error {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--color-temp-warm-bg);
+  color: var(--color-temp-warm);
+  font-size: var(--text-sm);
+}
+
+.create-account-sheet__result {
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-2);
+  font-size: var(--text-sm);
+  color: var(--color-text);
+}
+
+.create-account-sheet__result p {
+  margin: 0;
+}
+
+.create-account-sheet__submit {
+  margin-top: var(--space-2);
+  padding: var(--space-3);
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--color-primary);
+  color: var(--color-on-accent);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color var(--transition-interactive);
+}
+
+.create-account-sheet__submit:hover {
+  background: var(--color-primary-hover);
+}
+
+.create-account-sheet__submit:disabled {
+  background: var(--color-text-faint);
+  cursor: not-allowed;
+}
+
+.create-account-sheet__submit:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}

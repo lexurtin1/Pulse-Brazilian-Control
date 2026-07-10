@@ -133,6 +133,7 @@ export function SignalFeed({ signals, accountsById, selectedAccountId, onSelectA
                             <span className="signal-feed__type-chip" data-signal-type={signal.type}>
                               {formatEnumLabel(signal.type)}
                             </span>
+                            <span className="signal-feed__source-chip">{formatEnumLabel(signal.source)}</span>
                           </div>
                           <p className="signal-feed__summary">{signal.summary}</p>
                         </button>

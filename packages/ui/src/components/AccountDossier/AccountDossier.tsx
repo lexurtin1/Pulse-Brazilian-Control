@@ -3,6 +3,7 @@ import { X } from "lucide-react";
 import type { AccountDetailDto } from "@pulse-brazil/application";
 import { fetchAccountDetail } from "../../api/client";
 import { useDialogA11y } from "../../hooks/useDialogA11y";
+import { formatEnumLabel } from "../../utils/formatEnumLabel";
 import "./AccountDossier.css";
 
 interface AccountDossierProps {
@@ -129,6 +130,7 @@ export function AccountDossier({ accountId, onClose }: AccountDossierProps) {
                 {state.detail.recentSignals.map((signal) => (
                   <li key={signal.id}>
                     <span className="account-dossier__signal-type">{signal.type}</span>
+                    <span className="account-dossier__signal-source">{formatEnumLabel(signal.source)}</span>
                     <p>{signal.summary}</p>
                   </li>
                 ))}
