@@ -65,12 +65,12 @@ export function toLocationRecordDto(record: LocationRecord): LocationRecordDto {
 
 /**
  * Mirrors a LocationRecord's resolved address/coordinate/verification state
- * onto a fresh OfficeLocation, so the linked account's own primary pin
- * matches what the CSV import actually resolved. Only called for
- * confidently-linked, review-free rows — see the write-through gate in
- * execute().
+ * onto a fresh OfficeLocation, so a linked account's own primary pin matches
+ * what the record actually resolved to. Used by execute()'s write-through
+ * gate below, and reused by CreateAccountFromLocationRecord for the reverse
+ * direction (account created from an already-existing record).
  */
-function officeLocationFromLocationRecord(record: LocationRecord, id: OfficeLocationId): OfficeLocation {
+export function officeLocationFromLocationRecord(record: LocationRecord, id: OfficeLocationId): OfficeLocation {
   const office = OfficeLocation.fromRawAddress({
     id,
     rawAddress: record.rawAddress.toSingleLine(),

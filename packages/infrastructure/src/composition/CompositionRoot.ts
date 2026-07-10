@@ -1,6 +1,7 @@
 import {
   BuildContextBundle,
   CreateAccount,
+  CreateAccountFromLocationRecord,
   CreateNote,
   CreateSignal,
   GenerateInsight,
@@ -68,6 +69,7 @@ export class CompositionRoot {
   readonly runMarketResearchSweep: RunMarketResearchSweep;
   readonly importLocationCsv: ImportLocationCsv;
   readonly listLocationRecordsForMap: ListLocationRecordsForMap;
+  readonly createAccountFromLocationRecord: CreateAccountFromLocationRecord;
 
   constructor(config: CompositionRootConfig) {
     this.pool = createPool(config.databaseUrl);
@@ -104,6 +106,7 @@ export class CompositionRoot {
     this.runMarketResearchSweep = new RunMarketResearchSweep(accounts, signals, marketResearch, idGenerator);
     this.importLocationCsv = new ImportLocationCsv(locationRecords, documents, accounts, geocoder, idGenerator);
     this.listLocationRecordsForMap = new ListLocationRecordsForMap(locationRecords, accounts);
+    this.createAccountFromLocationRecord = new CreateAccountFromLocationRecord(locationRecords, accounts, idGenerator);
   }
 
   /** Closes the underlying pg Pool — call on graceful shutdown. */

@@ -53,3 +53,4 @@ export * from "./use-cases/context/BuildContextBundle.js";
 export * from "./use-cases/RunMarketResearchSweep.js";
 export * from "./use-cases/location/ImportLocationCsv.js";
 export * from "./use-cases/location/ListLocationRecordsForMap.js";
+export * from "./use-cases/location/CreateAccountFromLocationRecord.js";

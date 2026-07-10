@@ -239,4 +239,9 @@ export class LocationRecord {
   withNormalizedAddress(normalizedAddress: string): LocationRecord {
     return this.touch({ normalizedAddress: normalizedAddress.trim() || undefined });
   }
+
+  /** Links this record to an account created from it after the fact — the reverse direction of ImportLocationCsv's at-import-time write-through. */
+  withLinkedAccount(accountId: AccountId): LocationRecord {
+    return this.touch({ linkedAccountId: accountId });
+  }
 }
