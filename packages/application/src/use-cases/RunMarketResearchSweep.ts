@@ -16,8 +16,10 @@ import type { IIdGenerator } from "../ports/IIdGenerator.js";
 import type { IMarketResearchService, MarketResearchRecency } from "../ports/IMarketResearchService.js";
 import type { ISignalRepository } from "../ports/ISignalRepository.js";
 
-/** No inputs today — present so a future scoped sweep (e.g. one account) has somewhere to add a parameter without breaking callers. */
-export type RunMarketResearchSweepCommand = Record<string, never>;
+export interface RunMarketResearchSweepCommand {
+  /** Caps how many eligible accounts are processed, in the same alphabetical-by-name order IAccountRepository.findAll returns — lets a manual trigger test against a handful of accounts instead of the whole book. Omitted (e.g. the scheduled cron) means no cap. */
+  limit?: number;
+}
 
 interface ResearchQueryTemplate {
   category: string;
@@ -57,14 +59,16 @@ export class RunMarketResearchSweep {
     private readonly idGenerator: IIdGenerator,
   ) {}
 
-  async execute(_command: RunMarketResearchSweepCommand): Promise<RunMarketResearchSweepResult> {
+  async execute(command: RunMarketResearchSweepCommand): Promise<RunMarketResearchSweepResult> {
     const allAccounts = await this.accounts.findAll();
     // Researched: accounts still being pursued or engaged (Prospect, Active).
     // Skipped: Dormant/Churned — no value spending research calls on
     // relationships that are already given up on.
-    const activeAccounts = allAccounts.filter(
+    const eligibleAccounts = allAccounts.filter(
       (account) => account.status === AccountStatus.Active || account.status === AccountStatus.Prospect,
     );
+    const activeAccounts =
+      command.limit !== undefined && command.limit >= 0 ? eligibleAccounts.slice(0, command.limit) : eligibleAccounts;
 
     let signalsCreated = 0;
     const errors: RunMarketResearchSweepError[] = [];

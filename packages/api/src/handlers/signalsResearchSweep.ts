@@ -16,8 +16,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     return;
   }
 
+  const limitParam = typeof req.query.limit === "string" ? Number(req.query.limit) : undefined;
+  const limit = limitParam !== undefined && Number.isFinite(limitParam) && limitParam >= 0 ? limitParam : undefined;
+
   try {
-    const result = await getCompositionRoot().runMarketResearchSweep.execute({});
+    const result = await getCompositionRoot().runMarketResearchSweep.execute({ limit });
     res.status(200).json(result);
   } catch (error) {
     respondToError(res, "[api/signals/research-sweep GET]", error);
