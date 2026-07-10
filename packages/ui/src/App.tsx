@@ -7,6 +7,7 @@ import { MapLegend } from "./components/MapLegend/MapLegend";
 import { PulseLogo } from "./components/PulseLogo/PulseLogo";
 import { UploadFAB } from "./components/UploadFAB/UploadFAB";
 import { CreateAccountFAB } from "./components/CreateAccountFAB/CreateAccountFAB";
+import { PerplexitySweepButton } from "./components/PerplexitySweepButton/PerplexitySweepButton";
 import { AccountDossier } from "./components/AccountDossier/AccountDossier";
 import { LocationPinDetail } from "./components/LocationPinDetail/LocationPinDetail";
 import { EntryAnimation } from "./components/EntryAnimation/EntryAnimation";
@@ -159,6 +160,9 @@ export function App() {
         </motion.div>
         <motion.div variants={shellItemVariants}>
           <CreateAccountFAB onCreated={refreshAccounts} />
+        </motion.div>
+        <motion.div variants={shellItemVariants}>
+          <PerplexitySweepButton onComplete={refreshSignals} />
         </motion.div>
       </motion.div>
       {showIntro && <EntryAnimation mapRef={mapWrapRef} onComplete={() => setIntroDone(true)} />}

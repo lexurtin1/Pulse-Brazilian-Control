@@ -5,6 +5,7 @@ import type {
   ImportLocationCsvResultDto,
   LocationRecordMapPinDto,
   ProcessDocumentUploadResultDto,
+  RunMarketResearchSweepResult,
   SignalDto,
 } from "@pulse-brazil/application";
 
@@ -79,4 +80,9 @@ export function createAccount(params: {
     status: params.status,
     geographicScope: { countryCode: "BR", city: params.city },
   });
+}
+
+/** Triggers a real Perplexity call per query (3 per Prospect/Active account) — same endpoint Vercel Cron hits on schedule. */
+export function runResearchSweep(): Promise<RunMarketResearchSweepResult> {
+  return fetchJson("/api/signals/research-sweep");
 }
