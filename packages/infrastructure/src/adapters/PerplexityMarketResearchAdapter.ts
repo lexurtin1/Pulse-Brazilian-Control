@@ -1,3 +1,6 @@
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import type {
   IMarketResearchService,
   MarketResearchQuery,
@@ -8,6 +11,11 @@ import type {
 
 const PERPLEXITY_ENDPOINT = "https://api.perplexity.ai/chat/completions";
 const MODEL = "sonar";
+const SYSTEM_PROMPT_PROFILE = { name: "market-research-sweep", version: "v1" };
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+/** packages/infrastructure/src/adapters -> repo root/claude/prompts, whether running from src (tsx) or a future dist build (same directory depth). */
+const DEFAULT_PROMPTS_BASE_DIR = path.resolve(here, "..", "..", "..", "..", "claude", "prompts");
 
 const RECENCY_TO_SEARCH_FILTER: Record<Exclude<MarketResearchRecency, null>, string> = {
   P1D: "day",
@@ -40,19 +48,27 @@ function debugLog(label: string, value: unknown): void {
 /**
  * Satisfies IMarketResearchService against the Perplexity API. Uses the
  * "sonar" model — Perplexity's web-search model — never "sonar-pro" unless
- * a future config flag enables it, per the task's explicit instruction.
+ * a future config flag enables it, per the task's explicit instruction. The
+ * system prompt is loaded from a versioned file on disk, matching
+ * ClaudeServiceAdapter's pattern, never an inline string.
  */
 export class PerplexityMarketResearchAdapter implements IMarketResearchService {
-  constructor(private readonly apiKey: string) {}
+  private readonly promptsBaseDir: string;
+
+  constructor(
+    private readonly apiKey: string,
+    promptsBaseDir: string = DEFAULT_PROMPTS_BASE_DIR,
+  ) {
+    this.promptsBaseDir = promptsBaseDir;
+  }
 
   async research(query: MarketResearchQuery): Promise<MarketResearchResult> {
+    const systemPrompt = await this.loadSystemPrompt();
+
     const body: Record<string, unknown> = {
       model: MODEL,
       messages: [
-        {
-          role: "system",
-          content: "You are a market intelligence researcher specialising in Brazil. Answer factually and concisely. Cite your sources.",
-        },
+        { role: "system", content: systemPrompt },
         { role: "user", content: query.question },
       ],
       return_citations: true,
@@ -93,5 +109,19 @@ export class PerplexityMarketResearchAdapter implements IMarketResearchService {
     }));
 
     return { answer, sources, retrievedAt: new Date() };
+  }
+
+  private async loadSystemPrompt(): Promise<string> {
+    const { name, version } = SYSTEM_PROMPT_PROFILE;
+    const filePath = path.join(this.promptsBaseDir, name, version, "system.md");
+    try {
+      return await readFile(filePath, "utf-8");
+    } catch (error) {
+      throw new Error(
+        `Prompt file not found for profile "${name}" version "${version}" at ${filePath}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
   }
 }

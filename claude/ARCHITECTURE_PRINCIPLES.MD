@@ -169,6 +169,15 @@ Claude should not be given uncontrolled context by default.
 
 Deterministic work such as joins, filters, aggregations, and invariant enforcement should stay outside the model wherever possible.
 
+## AI vendor strategy
+
+Pulse Brazil uses two AI vendors, each with a distinct, non-overlapping role. This is a permanent architectural decision, not a temporary integration.
+
+- **Claude (Anthropic)** is the product's reasoning engine. It interprets structured context bundles and documents already inside the system, and its output is always a validated, schema-constrained tool call — never free text. Claude never performs open web search.
+- **Perplexity ("sonar" model)** is the product's web-research vendor. It is used exclusively by `RunMarketResearchSweep` to answer market-intelligence questions that require live, cited web search — a capability Claude does not have in this system. Its output is a free-text answer plus citations, not a validated domain object.
+
+Claude should not treat Perplexity as an implementation detail to be hidden or eventually replaced by Claude. The two vendors solve different problems: Claude reasons over known context, Perplexity retrieves new information from the web. Both are first-class, versioned-prompt-driven integrations under `packages/infrastructure/src/adapters/`, and both load their system prompts from `claude/prompts/<profile>/<version>/system.md` rather than inline strings.
+
 ## Prompt asset strategy
 
 Prompt files should be versioned in the repository and treated as first-class assets.
