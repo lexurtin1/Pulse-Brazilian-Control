@@ -5,7 +5,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import type { ClaudeDocumentContent, ClaudeExtractSignalsResult, ClaudeInsightResult, IClaudeService } from "@pulse-brazil/application";
 import type { ContextBundle, EvidenceReference, PromptProfile } from "@pulse-brazil/domain";
 
-const MODEL = "claude-opus-4-8";
+const MODEL = "claude-sonnet-5";
 const TOOL_NAME = "record_insight";
 const EXTRACT_SIGNALS_TOOL_NAME = "extract_signals";
 

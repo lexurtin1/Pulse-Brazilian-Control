@@ -5,6 +5,10 @@
     "packages/*"
   ],
   "scripts": {
-    "build:packages": "npm run build --workspace=@pulse-brazil/domain && npm run build --workspace=@pulse-brazil/application && npm run build --workspace=@pulse-brazil/infrastructure && npm run build --workspace=@pulse-brazil/api"
+    "build:packages": "npm run build --workspace=@pulse-brazil/domain && npm run build --workspace=@pulse-brazil/application && npm run build --workspace=@pulse-brazil/infrastructure && npm run build --workspace=@pulse-brazil/api",
+    "test": "npm run test --workspace=@pulse-brazil/infrastructure && npm run test --workspace=@pulse-brazil/api"
+  },
+  "devDependencies": {
+    "vitest": "^3.0.0"
   }
 }
