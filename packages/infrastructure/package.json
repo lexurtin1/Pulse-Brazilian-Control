@@ -10,13 +10,15 @@
     "build": "tsc",
     "typecheck": "tsc --noEmit",
     "migrate": "tsx src/db/run-migrations.ts",
-    "seed": "tsx src/db/seed.ts"
+    "seed": "tsx src/db/seed.ts",
+    "test": "vitest run"
   },
   "devDependencies": {
     "typescript": "^5.5.0",
     "@types/node": "^22.0.0",
     "@types/pg": "^8.11.0",
-    "tsx": "^4.19.0"
+    "tsx": "^4.19.0",
+    "vitest": "^3.0.0"
   },
   "dependencies": {
     "@pulse-brazil/domain": "*",
