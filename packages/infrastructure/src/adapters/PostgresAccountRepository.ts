@@ -125,6 +125,33 @@ function officeLocationToJson(office: OfficeLocation): OfficeLocationJson {
   };
 }
 
+/**
+ * Builds the parameterised INSERT for account_office_locations — repeated
+ * (id, account_id, point, is_primary) placeholder groups rather than
+ * unnest(), matching this file's existing style of plain parameterised SQL
+ * with no query builder.
+ */
+function insertOfficeLocationsSql(count: number): string {
+  const rows = Array.from({ length: count }, (_, i) => {
+    const base = i * 5;
+    return `(
+      $${base + 1}, $${base + 2},
+      CASE WHEN $${base + 3}::double precision IS NOT NULL AND $${base + 4}::double precision IS NOT NULL
+           THEN ST_SetSRID(ST_MakePoint($${base + 3}::double precision, $${base + 4}::double precision), 4326)::geography
+           ELSE NULL END,
+      $${base + 5}
+    )`;
+  });
+  return `INSERT INTO account_office_locations (id, account_id, point, is_primary) VALUES ${rows.join(", ")}`;
+}
+
+function insertOfficeLocationsParams(account: Account): unknown[] {
+  return account.officeLocations.flatMap((office) => {
+    const best = office.bestAvailableCoordinate;
+    return [office.id, account.id, best?.longitude ?? null, best?.latitude ?? null, office.isPrimary];
+  });
+}
+
 function evidenceReferenceToJson(evidence: { kind: string; referenceId?: string; excerpt?: string; locator?: string }): EvidenceReferenceJson {
   return {
     kind: evidence.kind,
@@ -221,56 +248,92 @@ export class PostgresAccountRepository implements IAccountRepository {
 
   async findAllWithCoordinates(): Promise<Account[]> {
     const { rows } = await this.pool.query<AccountRow>(`
-      SELECT * FROM accounts
-      WHERE EXISTS (
-        SELECT 1 FROM jsonb_array_elements(office_locations) AS office
-        WHERE (office->'verifiedCoordinate'->>'latitude') IS NOT NULL
-           OR (office->'unverifiedCoordinate'->>'latitude') IS NOT NULL
-      )
-      ORDER BY name
+      SELECT DISTINCT accounts.*
+      FROM accounts
+      JOIN account_office_locations ON account_office_locations.account_id = accounts.id
+      WHERE account_office_locations.point IS NOT NULL
+      ORDER BY accounts.name
     `);
     return rows.map(rowToAccount);
   }
 
-  async save(account: Account): Promise<void> {
-    await this.pool.query(
+  /** Accounts with an office within radiusMeters of center, via account_office_locations' GIST index — no JSONB scan. */
+  async findWithinRadius(center: Coordinate, radiusMeters: number): Promise<Account[]> {
+    const { rows } = await this.pool.query<AccountRow>(
       `
-      INSERT INTO accounts (
-        id, name, account_type, status, geographic_scope, office_locations,
-        linked_theme_ids, linked_signal_ids, latest_temperature, temperature_band,
-        external_references, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, now())
-      ON CONFLICT (id) DO UPDATE SET
-        name = EXCLUDED.name,
-        account_type = EXCLUDED.account_type,
-        status = EXCLUDED.status,
-        geographic_scope = EXCLUDED.geographic_scope,
-        office_locations = EXCLUDED.office_locations,
-        linked_theme_ids = EXCLUDED.linked_theme_ids,
-        linked_signal_ids = EXCLUDED.linked_signal_ids,
-        latest_temperature = EXCLUDED.latest_temperature,
-        temperature_band = EXCLUDED.temperature_band,
-        external_references = EXCLUDED.external_references,
-        updated_at = now()
+      SELECT DISTINCT accounts.*
+      FROM accounts
+      JOIN account_office_locations ON account_office_locations.account_id = accounts.id
+      WHERE account_office_locations.point IS NOT NULL
+        AND ST_DWithin(
+          account_office_locations.point,
+          ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography,
+          $3
+        )
+      ORDER BY accounts.name
       `,
-      [
-        account.id,
-        account.name,
-        account.accountType,
-        account.status,
-        JSON.stringify({
-          countryCode: account.geographicScope.countryCode,
-          region: account.geographicScope.region ?? null,
-          city: account.geographicScope.city ?? null,
-        }),
-        JSON.stringify(account.officeLocations.map(officeLocationToJson)),
-        JSON.stringify(account.linkedThemeIds),
-        JSON.stringify(account.linkedSignalIds),
-        account.latestTemperature ? JSON.stringify(temperatureAssessmentToJson(account.latestTemperature)) : null,
-        account.latestTemperature?.band ?? null,
-        JSON.stringify(account.externalReferences.map(externalReferenceToJson)),
-      ],
+      [center.longitude, center.latitude, radiusMeters],
     );
+    return rows.map(rowToAccount);
+  }
+
+  async save(account: Account): Promise<void> {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+
+      await client.query(
+        `
+        INSERT INTO accounts (
+          id, name, account_type, status, geographic_scope, office_locations,
+          linked_theme_ids, linked_signal_ids, latest_temperature, temperature_band,
+          external_references, updated_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, now())
+        ON CONFLICT (id) DO UPDATE SET
+          name = EXCLUDED.name,
+          account_type = EXCLUDED.account_type,
+          status = EXCLUDED.status,
+          geographic_scope = EXCLUDED.geographic_scope,
+          office_locations = EXCLUDED.office_locations,
+          linked_theme_ids = EXCLUDED.linked_theme_ids,
+          linked_signal_ids = EXCLUDED.linked_signal_ids,
+          latest_temperature = EXCLUDED.latest_temperature,
+          temperature_band = EXCLUDED.temperature_band,
+          external_references = EXCLUDED.external_references,
+          updated_at = now()
+        `,
+        [
+          account.id,
+          account.name,
+          account.accountType,
+          account.status,
+          JSON.stringify({
+            countryCode: account.geographicScope.countryCode,
+            region: account.geographicScope.region ?? null,
+            city: account.geographicScope.city ?? null,
+          }),
+          JSON.stringify(account.officeLocations.map(officeLocationToJson)),
+          JSON.stringify(account.linkedThemeIds),
+          JSON.stringify(account.linkedSignalIds),
+          account.latestTemperature ? JSON.stringify(temperatureAssessmentToJson(account.latestTemperature)) : null,
+          account.latestTemperature?.band ?? null,
+          JSON.stringify(account.externalReferences.map(externalReferenceToJson)),
+        ],
+      );
+
+      await client.query("DELETE FROM account_office_locations WHERE account_id = $1", [account.id]);
+
+      if (account.officeLocations.length > 0) {
+        await client.query(insertOfficeLocationsSql(account.officeLocations.length), insertOfficeLocationsParams(account));
+      }
+
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   async delete(id: AccountId): Promise<void> {
