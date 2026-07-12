@@ -38,11 +38,13 @@ Pulse Brazil is expected to be deployed on Vercel so it can be shared easily wit
 
 Claude should therefore prefer architecture that works cleanly with:
 
-- Next.js
+- Vite + React SPA
 - Vercel-hosted frontend delivery
-- API routes or lightweight backend services where appropriate
+- Vercel serverless functions (`/api`) for lightweight backend services where appropriate
 - External hosted Postgres infrastructure
 - External hosted supporting services only when truly necessary
+
+A Vite SPA plus Vercel serverless functions achieves the same deployment-simplicity goal as Next.js without SSR/Next.js-specific machinery, since Pulse Brazil does not need server-side rendering or SEO.
 
 Claude should avoid proposing architecture that is awkward, fragile, or operationally heavy for Vercel-based deployment unless there is a compelling reason.
 
@@ -104,8 +106,7 @@ Application services should return map-oriented view models, not rendering code.
 
 Preferred frontend stack:
 
-- Next.js
-- React
+- Vite + React SPA
 - TypeScript
 - MapLibre
 - deck.gl
@@ -319,7 +320,7 @@ When multiple valid architecture options exist, Claude should recommend the one 
 
 Unless explicitly overridden, Claude should assume Pulse Brazil prefers:
 
-- Next.js on Vercel
+- Vite + React SPA deployed on Vercel, with Vercel serverless functions for backend needs
 - React + TypeScript
 - PostgreSQL + PostGIS
 - MapLibre + deck.gl
