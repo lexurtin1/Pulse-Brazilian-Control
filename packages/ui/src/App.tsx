@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import type { AccountMapPinDto, AccountSummaryDto, LocationRecordMapPinDto, SignalDto } from "@pulse-brazil/application";
 import { SignalFeed } from "./components/SignalFeed/SignalFeed";
 import { BrazilMap } from "./components/BrazilMap/BrazilMap";
-import { MapLegend } from "./components/MapLegend/MapLegend";
+import { SignalStats } from "./components/SignalStats/SignalStats";
 import { PulseLogo } from "./components/PulseLogo/PulseLogo";
 import { UploadFAB } from "./components/UploadFAB/UploadFAB";
 import { CreateAccountFAB } from "./components/CreateAccountFAB/CreateAccountFAB";
@@ -148,7 +148,7 @@ export function App() {
               />
             </div>
             <motion.div variants={shellItemVariants}>
-              <MapLegend pins={mapPins} />
+              <SignalStats signals={signals} />
             </motion.div>
           </div>
         </div>

@@ -1,9 +1,15 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import gsap from "gsap";
 import type { AccountSummaryDto, SignalDto } from "@pulse-brazil/application";
 import { groupSignalsByDay } from "../../utils/groupSignalsByDay";
 import { formatEnumLabel } from "../../utils/formatEnumLabel";
+import { categorizeSignal, SIGNAL_CATEGORIES, SIGNAL_CATEGORY_LABEL } from "../../utils/categorizeSignal";
+import type { SignalCategory } from "../../utils/categorizeSignal";
 import "./SignalFeed.css";
+
+type CategoryFilter = "All" | SignalCategory;
+const FILTER_OPTIONS: readonly CategoryFilter[] = ["All", ...SIGNAL_CATEGORIES];
 
 interface SignalFeedProps {
   signals: SignalDto[];
@@ -14,6 +20,8 @@ interface SignalFeedProps {
 
 const PANEL_ID = "signal-feed-panel";
 const TEMPERATURE_BANDS = ["Hot", "Warm", "Cool", "Cold"] as const;
+const EXPANDED_WIDTH = 420;
+const COLLAPSED_WIDTH = 56;
 
 function formatTimestamp(iso: string): string {
   return new Date(iso).toLocaleString("en-US", {
@@ -27,11 +35,32 @@ function formatTimestamp(iso: string): string {
 export function SignalFeed({ signals, accountsById, selectedAccountId, onSelectAccount }: SignalFeedProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [now] = useState(() => new Date());
+  const [activeFilter, setActiveFilter] = useState<CategoryFilter>("All");
+  const rootRef = useRef<HTMLDivElement>(null);
+  const isFirstRender = useRef(true);
+
+  // Width is gsap-driven rather than a CSS transition so it shares one
+  // animation mechanism with the rest of the redesign (stat counters, in
+  // particular) instead of splitting collapse behavior across CSS and JS.
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    if (!rootRef.current) return;
+    gsap.to(rootRef.current, {
+      width: isCollapsed ? COLLAPSED_WIDTH : EXPANDED_WIDTH,
+      duration: 0.18,
+      ease: "power2.inOut",
+    });
+  }, [isCollapsed]);
 
   const sorted = [...signals].sort(
     (a, b) => new Date(b.dateObserved).getTime() - new Date(a.dateObserved).getTime(),
   );
-  const groups = groupSignalsByDay(sorted, now);
+  const filtered =
+    activeFilter === "All" ? sorted : sorted.filter((signal) => categorizeSignal(signal) === activeFilter);
+  const groups = groupSignalsByDay(filtered, now);
 
   const temperatureCounts = useMemo(() => {
     const counts: Record<(typeof TEMPERATURE_BANDS)[number], number> = { Hot: 0, Warm: 0, Cool: 0, Cold: 0 };
@@ -48,7 +77,7 @@ export function SignalFeed({ signals, accountsById, selectedAccountId, onSelectA
   const todayLabel = now.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
 
   return (
-    <div className="signal-feed" data-collapsed={isCollapsed || undefined}>
+    <div ref={rootRef} className="signal-feed" data-collapsed={isCollapsed || undefined}>
       <div className="signal-feed__rail">
         <button
           type="button"
@@ -60,12 +89,29 @@ export function SignalFeed({ signals, accountsById, selectedAccountId, onSelectA
         >
           {isCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
         </button>
+        <span className="signal-feed__rail-label" aria-hidden="true">
+          Live Feed
+        </span>
       </div>
 
       <div className="signal-feed__panel" id={PANEL_ID} hidden={isCollapsed}>
         <div className="signal-feed__header">
           <h1 className="signal-feed__title">Signals</h1>
           <p className="signal-feed__date">{todayLabel}</p>
+        </div>
+
+        <div className="signal-feed__filters" role="group" aria-label="Filter signals by category">
+          {FILTER_OPTIONS.map((option) => (
+            <button
+              key={option}
+              type="button"
+              className="signal-feed__filter-pill"
+              data-active={activeFilter === option || undefined}
+              onClick={() => setActiveFilter(option)}
+            >
+              {option === "All" ? "All" : SIGNAL_CATEGORY_LABEL[option]}
+            </button>
+          ))}
         </div>
 
         {totalWithTemperature > 0 && (
@@ -99,8 +145,10 @@ export function SignalFeed({ signals, accountsById, selectedAccountId, onSelectA
           </div>
         )}
 
-        {sorted.length === 0 ? (
-          <p className="signal-feed__empty">No signals yet</p>
+        {filtered.length === 0 ? (
+          <p className="signal-feed__empty">
+            {activeFilter === "All" ? "No signals yet" : `No ${SIGNAL_CATEGORY_LABEL[activeFilter]} signals`}
+          </p>
         ) : (
           <div className="signal-feed__groups">
             {groups.map((group) => (
@@ -114,29 +162,44 @@ export function SignalFeed({ signals, accountsById, selectedAccountId, onSelectA
                     const account = accountId ? accountsById.get(accountId) : undefined;
                     const isSelected = accountId != null && accountId === selectedAccountId;
                     const band = account?.temperatureBand;
+                    const category = categorizeSignal(signal);
 
                     return (
                       <li key={signal.id}>
-                        <button
-                          type="button"
-                          className="signal-feed__item"
-                          data-selected={isSelected || undefined}
-                          disabled={!accountId}
-                          onClick={() => accountId && onSelectAccount(accountId)}
-                        >
-                          <div className="signal-feed__meta">
+                        <div className="signal-feed__item" data-selected={isSelected || undefined}>
+                          <div className="signal-feed__row-top">
+                            <span
+                              className="signal-feed__category-dot"
+                              data-category={category}
+                              aria-hidden="true"
+                            />
+                            <span className="signal-feed__headline">
+                              <span className="signal-feed__account">{account?.name ?? "Unlinked account"}</span>
+                              {" — "}
+                              {signal.title}
+                            </span>
+                            <span className="signal-feed__timestamp">{formatTimestamp(signal.dateObserved)}</span>
+                          </div>
+                          <p className="signal-feed__summary">{signal.summary}</p>
+                          <div className="signal-feed__row-bottom">
+                            <span className="signal-feed__category-chip" data-category={category}>
+                              {SIGNAL_CATEGORY_LABEL[category]}
+                            </span>
+                            <span className="signal-feed__source-chip">{formatEnumLabel(signal.source)}</span>
                             {band && (
                               <span className="signal-feed__temp-indicator" data-band={band} aria-hidden="true" />
                             )}
-                            <span className="signal-feed__timestamp">{formatTimestamp(signal.dateObserved)}</span>
-                            <span className="signal-feed__account">{account?.name ?? "Unlinked account"}</span>
-                            <span className="signal-feed__type-chip" data-signal-type={signal.type}>
-                              {formatEnumLabel(signal.type)}
-                            </span>
-                            <span className="signal-feed__source-chip">{formatEnumLabel(signal.source)}</span>
+                            <button
+                              type="button"
+                              className="signal-feed__details"
+                              disabled={!accountId}
+                              aria-label={`View details for ${account?.name ?? "unlinked account"}`}
+                              onClick={() => accountId && onSelectAccount(accountId)}
+                            >
+                              Details ▾
+                            </button>
                           </div>
-                          <p className="signal-feed__summary">{signal.summary}</p>
-                        </button>
+                        </div>
                       </li>
                     );
                   })}

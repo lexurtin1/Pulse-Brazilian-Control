@@ -1,0 +1,48 @@
+.signal-stats {
+  position: absolute;
+  top: var(--space-4);
+  /* Offset past MapLibre's NavigationControl (BrazilMap.tsx), which is
+     anchored to this same top-left corner — a plain --space-4 inset would
+     sit directly under the zoom buttons. */
+  left: calc(var(--space-4) + 48px);
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  max-width: 320px;
+}
+
+.signal-stats__headline {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.signal-stats__headline-value {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.signal-stats__row {
+  display: flex;
+  gap: var(--space-6);
+}
+
+.signal-stats__stat {
+  display: flex;
+  flex-direction: column;
+}
+
+.signal-stats__value {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.signal-stats__caption {
+  font-size: var(--text-xs);
+  color: var(--color-text-faint);
+}
