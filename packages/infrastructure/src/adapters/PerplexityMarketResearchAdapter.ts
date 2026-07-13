@@ -24,12 +24,12 @@ const RESPONSE_SCHEMA = {
       items: { type: "string" },
       maxItems: 3,
       description:
-        "Up to 3 short, distinct bullet points covering genuinely new developments, each no more than about 15 words. Write for a salesperson skimming a feed, not an analyst: plain everyday English, no jargon, acronyms, or ticker/statute-style references without a one-word explanation of why it matters. State the headline fact plainly (who did what), not the mechanism behind it. Empty if there is nothing new since the prior findings supplied in the prompt.",
+        "Up to 3 short, distinct bullet points covering genuinely new developments, each no more than about 15 words. Always in English, even when the source material is in Portuguese or another language. Write for a salesperson skimming a feed, not an analyst: plain everyday English, no jargon, acronyms, or ticker/statute-style references without a one-word explanation of why it matters. State the headline fact plainly (who did what), not the mechanism behind it. Empty if there is nothing new since the prior findings supplied in the prompt.",
     },
     detail: {
       type: "string",
       description:
-        "2-3 plain-English sentences giving a bit more context behind the bullets, still written for a business reader with no domain jargon. Empty string if bullets is empty.",
+        "2-3 plain-English sentences (always in English, even when the source material is in Portuguese or another language) giving a bit more context behind the bullets, still written for a business reader with no domain jargon. Empty string if bullets is empty.",
     },
   },
   required: ["bullets", "detail"],
@@ -86,7 +86,7 @@ export class PerplexityMarketResearchAdapter implements IMarketResearchService {
         {
           role: "system",
           content:
-            "You are writing a market news feed for a Calastone salesperson who covers Brazil, not for a fellow analyst. Calastone is a cross-border fund order-routing and settlement network. Ground everything in real web search results, but translate it into short, plain-English, non-technical language — imagine explaining it out loud to a colleague, not writing a research note. Avoid financial jargon, regulatory citation numbers, and acronyms unless you also say in plain terms why it matters. Respond with the exact JSON shape requested — no markdown, no prose outside the JSON.",
+            "You are writing a market news feed for a Calastone salesperson who covers Brazil, not for a fellow analyst. Calastone is a cross-border fund order-routing and settlement network. Ground everything in real web search results — including Brazilian Portuguese-language sources — but always write the bullets and detail in English, translating and summarizing rather than quoting the source language. Use short, plain-English, non-technical language — imagine explaining it out loud to a colleague, not writing a research note. Avoid financial jargon, regulatory citation numbers, and acronyms unless you also say in plain terms why it matters. Respond with the exact JSON shape requested — no markdown, no prose outside the JSON.",
         },
         { role: "user", content: buildUserMessage(query) },
       ],

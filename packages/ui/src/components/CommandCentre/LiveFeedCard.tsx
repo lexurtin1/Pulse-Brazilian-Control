@@ -3,7 +3,6 @@ import { ArrowLeft } from "lucide-react";
 import type { AccountSummaryDto, SignalDto } from "@pulse-brazil/application";
 import { groupSignalsByDay } from "../../utils/groupSignalsByDay";
 import { formatEnumLabel } from "../../utils/formatEnumLabel";
-import { clientTypeColorVar, primaryClientType } from "../../utils/clientType";
 import "./CommandCentre.css";
 
 interface LiveFeedCardProps {
@@ -96,16 +95,7 @@ export function LiveFeedCard({ signals, accountsById, selectedAccountId, onSelec
 
           <h3 className="live-feed__takeover-title">{expandedSignal.title}</h3>
 
-          {account && (
-            <div className="live-feed__account">
-              <span
-                className="live-feed__client-type-dot"
-                style={{ background: `var(${clientTypeColorVar(primaryClientType(account.clientTypes))})` }}
-                aria-hidden="true"
-              />
-              {account.name}
-            </div>
-          )}
+          {account && <div className="live-feed__account">{account.name}</div>}
 
           <ul className="live-feed__bullets">
             {bullets.map((bullet, index) => (
