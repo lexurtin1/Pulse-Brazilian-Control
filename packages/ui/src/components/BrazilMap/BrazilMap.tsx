@@ -1,8 +1,9 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import { MapboxOverlay } from "@deck.gl/mapbox";
 import { ScatterplotLayer } from "@deck.gl/layers";
 import type { AccountMapPinDto, LocationRecordMapPinDto } from "@pulse-brazil/application";
+import { clientTypeColorVar, primaryClientType } from "../../utils/clientType";
 import "./BrazilMap.css";
 
 interface BrazilMapProps {
@@ -14,8 +15,8 @@ interface BrazilMapProps {
 }
 
 // One fixed color per LocationRecordKind — deliberately distinct from
-// --color-primary/--color-temp-* (account temperature pins use those), so
-// an Office pin is never the same color as a Hot account and the two
+// --color-primary/--color-client-* (account client-type pins use those), so
+// an Office pin is never the same color as an account pin and the two
 // marker families read as clearly different things.
 const LOCATION_KIND_COLOR_VAR: Record<string, string> = {
   Office: "--color-location-office",
@@ -37,14 +38,6 @@ const BRAZIL_BOUNDS: [[number, number], [number, number]] = [
   [-29, 6],
 ];
 
-// Padded well beyond Brazil's own bounds so panning still can't wander off
-// into neighboring countries — this is meant to read as "Brazil, standalone,"
-// not a world map that happens to start centered on Brazil.
-const BRAZIL_MAX_BOUNDS: [[number, number], [number, number]] = [
-  [-78, -37],
-  [-30, 8],
-];
-
 // OpenFreeMap: free, keyless vector tiles for MapLibre GL JS — no account,
 // no API token, no usage limits. "positron" is a clean light/muted style,
 // matching Soft Quartz's calm aesthetic better than a busier default style.
@@ -58,13 +51,6 @@ const MAP_STYLE_URL = "https://tiles.openfreemap.org/styles/positron";
 // competed for attention with the pins actually meant to be read.
 const COUNTRY_TIERS_URL = "/data/world-countries-tiers.geojson";
 
-const TEMP_BAND_VAR: Record<string, string> = {
-  Hot: "--color-temp-hot",
-  Warm: "--color-temp-warm",
-  Cool: "--color-temp-cool",
-  Cold: "--color-temp-cold",
-};
-
 // deck.gl layers need numeric colors, not CSS var() strings. Read the tokens
 // straight off the document so this stays in sync with tokens.css — including
 // its dark-mode redeclarations — instead of duplicating hex values here.
@@ -74,10 +60,17 @@ function cssColor(varName: string): [number, number, number] {
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
 }
 
+interface HoveredPin {
+  name: string;
+  x: number;
+  y: number;
+}
+
 export function BrazilMap({ pins, locationPins = [], selectedAccountId, onSelectAccount, onSelectLocationPin }: BrazilMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const overlayRef = useRef<MapboxOverlay | null>(null);
+  const [hoveredPin, setHoveredPin] = useState<HoveredPin | null>(null);
 
   const onSelectAccountRef = useRef(onSelectAccount);
   onSelectAccountRef.current = onSelectAccount;
@@ -92,7 +85,6 @@ export function BrazilMap({ pins, locationPins = [], selectedAccountId, onSelect
       style: MAP_STYLE_URL,
       bounds: BRAZIL_BOUNDS,
       fitBoundsOptions: { padding: 24 },
-      maxBounds: BRAZIL_MAX_BOUNDS,
     });
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-left");
 
@@ -142,127 +134,92 @@ export function BrazilMap({ pins, locationPins = [], selectedAccountId, onSelect
     };
   }, []);
 
-  // Account-node pins, rendered via deck.gl instead of DOM markers. The
-  // "Hot" pulse ring is preserved as an animated second layer, matching the
-  // original CSS keyframe's 2s cycle, and is skipped under
-  // prefers-reduced-motion (same convention as tokens.css).
+  // Account-node pins, rendered via deck.gl instead of DOM markers, colored
+  // by the account's primary ClientType rather than temperature.
   useEffect(() => {
     const overlay = overlayRef.current;
     if (!overlay) return;
 
-    function buildLayers(pulsePhase: number) {
-      // A dark shadow ring behind every dot, not a light one — the basemap
-      // is a light neutral (no more green fill wash), so a light halo barely
-      // shows up against it. A dark ring reads clearly against light map
-      // surfaces regardless of what's underneath, which a same-tone halo
-      // can't guarantee.
-      const shadowColor = cssColor("--color-text");
-      const accountShadow = new ScatterplotLayer<AccountMapPinDto>({
-        id: "account-pins-shadow",
-        data: pins,
-        filled: true,
-        stroked: false,
-        radiusUnits: "pixels",
-        getPosition: (pin) => [pin.coordinate.longitude, pin.coordinate.latitude],
-        getRadius: 14,
-        getFillColor: [...shadowColor, 200],
-      });
+    // A dark shadow ring behind every dot, not a light one — the basemap
+    // is a light neutral (no more green fill wash), so a light halo barely
+    // shows up against it. A dark ring reads clearly against light map
+    // surfaces regardless of what's underneath, which a same-tone halo
+    // can't guarantee.
+    const shadowColor = cssColor("--color-text");
+    const accountShadow = new ScatterplotLayer<AccountMapPinDto>({
+      id: "account-pins-shadow",
+      data: pins,
+      filled: true,
+      stroked: false,
+      radiusUnits: "pixels",
+      getPosition: (pin) => [pin.coordinate.longitude, pin.coordinate.latitude],
+      getRadius: 14,
+      getFillColor: [...shadowColor, 200],
+    });
 
-      const base = new ScatterplotLayer<AccountMapPinDto>({
-        id: "account-pins",
-        data: pins,
-        pickable: true,
-        stroked: true,
-        filled: true,
-        radiusUnits: "pixels",
-        lineWidthUnits: "pixels",
-        getPosition: (pin) => [pin.coordinate.longitude, pin.coordinate.latitude],
-        getRadius: 10,
-        getFillColor: (pin) => cssColor(TEMP_BAND_VAR[pin.temperatureBand ?? "Cold"] ?? "--color-temp-cold"),
-        getLineColor: (pin) => (pin.id === selectedAccountId ? cssColor("--color-primary-active") : cssColor("--color-surface")),
-        getLineWidth: (pin) => (pin.id === selectedAccountId ? 3 : 2),
-        onClick: (info) => {
-          if (info.object) onSelectAccountRef.current?.(info.object.id);
-        },
-        updateTriggers: {
-          getLineColor: selectedAccountId,
-          getLineWidth: selectedAccountId,
-        },
-      });
+    const base = new ScatterplotLayer<AccountMapPinDto>({
+      id: "account-pins",
+      data: pins,
+      pickable: true,
+      stroked: true,
+      filled: true,
+      radiusUnits: "pixels",
+      lineWidthUnits: "pixels",
+      getPosition: (pin) => [pin.coordinate.longitude, pin.coordinate.latitude],
+      getRadius: 10,
+      getFillColor: (pin) => cssColor(clientTypeColorVar(primaryClientType(pin.clientTypes))),
+      getLineColor: (pin) => (pin.id === selectedAccountId ? cssColor("--color-primary-active") : cssColor("--color-surface")),
+      getLineWidth: (pin) => (pin.id === selectedAccountId ? 3 : 2),
+      onClick: (info) => {
+        if (info.object) onSelectAccountRef.current?.(info.object.id);
+      },
+      onHover: (info) => {
+        setHoveredPin(info.object ? { name: info.object.name, x: info.x, y: info.y } : null);
+      },
+      updateTriggers: {
+        getLineColor: selectedAccountId,
+        getLineWidth: selectedAccountId,
+      },
+    });
 
-      const hotPins = pins.filter((pin) => pin.temperatureBand === "Hot");
-      const hotColor = cssColor("--color-temp-hot");
-      const pulse = new ScatterplotLayer<AccountMapPinDto>({
-        id: "account-pins-pulse",
-        data: hotPins,
-        stroked: true,
-        filled: false,
-        radiusUnits: "pixels",
-        lineWidthUnits: "pixels",
-        getPosition: (pin) => [pin.coordinate.longitude, pin.coordinate.latitude],
-        getRadius: 11 + pulsePhase * 22,
-        getLineColor: [...hotColor, Math.round((1 - pulsePhase) * 180)],
-        getLineWidth: 2,
-      });
+    // Office/Event/Visit/SignalLocation records — a separate marker family
+    // from account client-type pins (fixed per-kind color, not client-type
+    // color), so the two are never visually confused.
+    // reviewStatus drives opacity directly from the DTO the backend sent —
+    // the frontend never decides on its own whether a record is trustworthy.
+    const locationShadow = new ScatterplotLayer<LocationRecordMapPinDto>({
+      id: "location-record-pins-shadow",
+      data: locationPins,
+      filled: true,
+      stroked: false,
+      radiusUnits: "pixels",
+      getPosition: (pin) => [pin.coordinate.longitude, pin.coordinate.latitude],
+      getRadius: 12,
+      getFillColor: [...shadowColor, 200],
+    });
 
-      // Office/Event/Visit/SignalLocation records — a separate marker family
-      // from account temperature pins (fixed per-kind color, not
-      // temperature-band color), so the two are never visually confused.
-      // reviewStatus drives opacity directly from the DTO the backend sent —
-      // the frontend never decides on its own whether a record is trustworthy.
-      const locationShadow = new ScatterplotLayer<LocationRecordMapPinDto>({
-        id: "location-record-pins-shadow",
-        data: locationPins,
-        filled: true,
-        stroked: false,
-        radiusUnits: "pixels",
-        getPosition: (pin) => [pin.coordinate.longitude, pin.coordinate.latitude],
-        getRadius: 12,
-        getFillColor: [...shadowColor, 200],
-      });
+    const locationMarkers = new ScatterplotLayer<LocationRecordMapPinDto>({
+      id: "location-record-pins",
+      data: locationPins,
+      pickable: true,
+      filled: true,
+      stroked: true,
+      radiusUnits: "pixels",
+      lineWidthUnits: "pixels",
+      getPosition: (pin) => [pin.coordinate.longitude, pin.coordinate.latitude],
+      getRadius: 8,
+      getFillColor: (pin) => {
+        const [r, g, b] = cssColor(LOCATION_KIND_COLOR_VAR[pin.kind] ?? "--color-text-faint");
+        return [r, g, b, pin.reviewStatus === "ReviewRequired" ? 150 : 255];
+      },
+      getLineColor: [...cssColor("--color-surface"), 255],
+      getLineWidth: 2,
+      onClick: (info) => {
+        if (info.object) onSelectLocationPinRef.current?.(info.object);
+      },
+    });
 
-      const locationMarkers = new ScatterplotLayer<LocationRecordMapPinDto>({
-        id: "location-record-pins",
-        data: locationPins,
-        pickable: true,
-        filled: true,
-        stroked: true,
-        radiusUnits: "pixels",
-        lineWidthUnits: "pixels",
-        getPosition: (pin) => [pin.coordinate.longitude, pin.coordinate.latitude],
-        getRadius: 8,
-        getFillColor: (pin) => {
-          const [r, g, b] = cssColor(LOCATION_KIND_COLOR_VAR[pin.kind] ?? "--color-text-faint");
-          return [r, g, b, pin.reviewStatus === "ReviewRequired" ? 150 : 255];
-        },
-        getLineColor: [...cssColor("--color-surface"), 255],
-        getLineWidth: 2,
-        onClick: (info) => {
-          if (info.object) onSelectLocationPinRef.current?.(info.object);
-        },
-      });
-
-      return [accountShadow, locationShadow, pulse, base, locationMarkers];
-    }
-
-    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const hasHotPin = pins.some((pin) => pin.temperatureBand === "Hot");
-
-    if (!hasHotPin || reducedMotion) {
-      overlay.setProps({ layers: buildLayers(0) });
-      return;
-    }
-
-    let frame: number;
-    const start = performance.now();
-    const tick = (now: number) => {
-      const phase = ((now - start) % 2000) / 2000;
-      overlay.setProps({ layers: buildLayers(phase) });
-      frame = requestAnimationFrame(tick);
-    };
-    frame = requestAnimationFrame(tick);
-
-    return () => cancelAnimationFrame(frame);
+    overlay.setProps({ layers: [accountShadow, locationShadow, base, locationMarkers] });
   }, [pins, locationPins, selectedAccountId]);
 
   useEffect(() => {
@@ -283,6 +240,11 @@ export function BrazilMap({ pins, locationPins = [], selectedAccountId, onSelect
   return (
     <div className="brazil-map">
       <div ref={containerRef} className="brazil-map__canvas" />
+      {hoveredPin && (
+        <div className="brazil-map__pin-tooltip" style={{ left: hoveredPin.x, top: hoveredPin.y }}>
+          {hoveredPin.name}
+        </div>
+      )}
       {/* deck.gl renders pins to canvas, which isn't natively focusable/
           screen-reader-accessible. This mirrors the same click behavior as a
           real, tabbable, always-in-the-DOM control per pin — hidden until

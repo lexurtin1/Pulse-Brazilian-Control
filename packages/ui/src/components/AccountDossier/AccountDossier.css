@@ -79,8 +79,7 @@
   font-size: var(--text-xs);
 }
 
-/* Status: outlined pill — deliberately distinct in shape from the
-   temperature chip below so the two aren't read as the same taxonomy. */
+/* Status: outlined pill. */
 .account-dossier__status-chip {
   padding: var(--space-1) var(--space-3);
   border-radius: var(--radius-full);
@@ -89,31 +88,21 @@
   color: var(--color-text-muted);
 }
 
-/* Temperature: solid filled pill using the shared temp-ramp tokens. */
-.account-dossier__temp-chip {
-  padding: var(--space-1) var(--space-3);
+/* Client type: a color mark beside plain-ink text (not colored text
+   itself), matching the map's legend/pin treatment — see
+   utils/clientType.ts. */
+.account-dossier__client-type {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-muted);
+}
+
+.account-dossier__client-type-dot {
+  width: 10px;
+  height: 10px;
   border-radius: var(--radius-full);
-  font-weight: 600;
-}
-
-.account-dossier__temp-chip[data-band="Hot"] {
-  color: var(--color-temp-hot);
-  background: var(--color-temp-hot-bg);
-}
-
-.account-dossier__temp-chip[data-band="Warm"] {
-  color: var(--color-temp-warm);
-  background: var(--color-temp-warm-bg);
-}
-
-.account-dossier__temp-chip[data-band="Cool"] {
-  color: var(--color-temp-cool);
-  background: var(--color-temp-cool-bg);
-}
-
-.account-dossier__temp-chip[data-band="Cold"] {
-  color: var(--color-temp-cold);
-  background: var(--color-temp-cold-bg);
+  flex-shrink: 0;
 }
 
 .account-dossier__location {

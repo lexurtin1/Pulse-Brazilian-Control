@@ -42,6 +42,35 @@
   --color-temp-cold: #b0afa9;
   --color-temp-cold-bg: #eceae5;
 
+  /* Client-type categorical palette — one mark color per real ClientType enum
+     value (map pins, legend swatches, and small identity dots elsewhere in
+     the UI). Built with the dataviz skill's categorical method: 7 hues,
+     fixed order, validated for CVD-safe all-pairs separation (map pins can
+     sit anywhere next to each other) and >=3:1 mark contrast against this
+     surface. Colour is a mark beside plain-ink text, never colored text
+     itself — so these aren't paired with tinted -bg chip backgrounds the
+     way --signal-*/--color-temp-* are. Unclassified accounts (no Salesforce
+     ClientType on file) use --color-text-faint, not an 8th hue — "no data"
+     isn't a category. */
+  --color-client-distributor: #0095c3;
+  --color-client-fundmanager: #00969f;
+  --color-client-bank: #437eda;
+  --color-client-tpa: #009a7e;
+  --color-client-softwarevendor: #c45d41;
+  --color-client-fundoffunddesk: #c56100;
+  --color-client-fundaccountant: #be3655;
+
+  /* Calastone brand accents — scoped deliberately (see INTEGRATION_PLAN /
+     grilling session): KPI tiles (Active Accounts = blue, both Pipeline
+     tiles = teal) and the Upload button (green). NOT a replacement for
+     --color-primary, which stays the app-wide accent everywhere else.
+     Teal and green are darkened from the brand's literal hex (#3E9AA0,
+     #7FB86E) — used as-is they fail WCAG AA as label text / white-icon-on-
+     fill respectively; same hue family, adjusted lightness only. */
+  --color-calastone-blue: #1f6fa8;
+  --color-calastone-teal: #1f8288;
+  --color-calastone-green: #4a8038;
+
   /* Signal-type chip colors — one pair per real SignalType enum value. The
      6 market-sweep topics (RegulatoryChange, CompetitiveIntelligence,
      CrossBorder, Tokenisation, ETF, MarketStructure) are deliberately spread
@@ -179,6 +208,21 @@
     --color-temp-cool-bg: #232c33;
     --color-temp-cold: #6e6a62;
     --color-temp-cold-bg: #2a2823;
+
+    /* Client-type categorical palette — same seven hues, restepped for the
+       dark surface and revalidated (all-pairs CVD + >=3:1 contrast). */
+    --color-client-distributor: #0098be;
+    --color-client-fundmanager: #009ea5;
+    --color-client-bank: #4f85d9;
+    --color-client-tpa: #00a086;
+    --color-client-softwarevendor: #cc6346;
+    --color-client-fundoffunddesk: #c36d1a;
+    --color-client-fundaccountant: #cb5e70;
+
+    /* Calastone brand accents — brightened for contrast against a dark surface */
+    --color-calastone-blue: #4793ce;
+    --color-calastone-teal: #39969c;
+    --color-calastone-green: #60974f;
 
     /* Signal-type chip colors — same distinct hue families as light mode,
        restepped bright-text/dark-bg for the dark surface. */

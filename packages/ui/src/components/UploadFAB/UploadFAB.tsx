@@ -151,7 +151,7 @@ export function UploadFAB({ accountsForLinking, onImported, variant = "fab" }: U
           <Plus size={22} strokeWidth={2.25} />
         </button>
       ) : (
-        <button type="button" className="feed-action-button" onClick={() => setIsOpen(true)}>
+        <button type="button" className="feed-action-button feed-action-button--upload" onClick={() => setIsOpen(true)}>
           <UploadCloud size={16} strokeWidth={2} />
           <span>Upload document</span>
         </button>

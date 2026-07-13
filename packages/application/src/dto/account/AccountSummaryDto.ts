@@ -14,6 +14,7 @@ export interface AccountSummaryDto {
   type: string;
   status: string;
   temperatureBand?: string;
+  clientTypes: string[];
   primaryLocation: AccountLocationSummaryDto;
   latestAssessmentDate?: string;
 }

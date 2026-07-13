@@ -4,6 +4,7 @@ import type { AccountDetailDto } from "@pulse-brazil/application";
 import { fetchAccountDetail } from "../../api/client";
 import { useDialogA11y } from "../../hooks/useDialogA11y";
 import { formatEnumLabel } from "../../utils/formatEnumLabel";
+import { clientTypeColorVar, clientTypeLabel, primaryClientType } from "../../utils/clientType";
 import "./AccountDossier.css";
 
 interface AccountDossierProps {
@@ -70,11 +71,14 @@ export function AccountDossier({ accountId, onClose }: AccountDossierProps) {
             </h2>
             <div className="account-dossier__meta">
               <span className="account-dossier__status-chip">{state.detail.status}</span>
-              {state.detail.temperatureBand && (
-                <span className="account-dossier__temp-chip" data-band={state.detail.temperatureBand}>
-                  {state.detail.temperatureBand}
-                </span>
-              )}
+              <span className="account-dossier__client-type">
+                <span
+                  className="account-dossier__client-type-dot"
+                  style={{ background: `var(${clientTypeColorVar(primaryClientType(state.detail.clientTypes))})` }}
+                  aria-hidden="true"
+                />
+                {clientTypeLabel(primaryClientType(state.detail.clientTypes))}
+              </span>
               {state.detail.primaryLocation.city && (
                 <span className="account-dossier__location">{state.detail.primaryLocation.city}</span>
               )}

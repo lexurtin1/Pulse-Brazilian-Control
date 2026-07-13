@@ -1,17 +1,43 @@
+/* Collapsed by default (just the toggle pill); the full panel expands on
+   hover/focus so it doesn't compete with the map for space until wanted. */
 .map-legend {
   position: absolute;
   left: var(--space-4);
   bottom: var(--space-4);
   z-index: 5;
-  display: flex;
-  align-items: center;
-  gap: var(--space-4);
-  padding: var(--space-2) var(--space-4);
   background: var(--color-surface);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-sm);
   font-size: var(--text-xs);
   color: var(--color-text-muted);
+  cursor: default;
+}
+
+.map-legend__toggle {
+  display: block;
+  padding: var(--space-2) var(--space-4);
+}
+
+.map-legend__panel {
+  display: none;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  max-width: 260px;
+  padding: 0 var(--space-4) var(--space-3);
+}
+
+.map-legend:hover .map-legend__panel,
+.map-legend:focus-within .map-legend__panel,
+.map-legend:focus .map-legend__panel {
+  display: flex;
+}
+
+.map-legend:hover .map-legend__toggle,
+.map-legend:focus-within .map-legend__toggle,
+.map-legend:focus .map-legend__toggle {
+  padding-bottom: var(--space-1);
+  font-weight: 600;
+  color: var(--color-text);
 }
 
 .map-legend__item {
@@ -27,18 +53,34 @@
   flex-shrink: 0;
 }
 
-.map-legend__dot[data-band="Hot"] {
-  background: var(--color-temp-hot);
+.map-legend__dot[data-client-type="Distributor"] {
+  background: var(--color-client-distributor);
 }
 
-.map-legend__dot[data-band="Warm"] {
-  background: var(--color-temp-warm);
+.map-legend__dot[data-client-type="FundManager"] {
+  background: var(--color-client-fundmanager);
 }
 
-.map-legend__dot[data-band="Cool"] {
-  background: var(--color-temp-cool);
+.map-legend__dot[data-client-type="Bank"] {
+  background: var(--color-client-bank);
 }
 
-.map-legend__dot[data-band="Cold"] {
-  background: var(--color-temp-cold);
+.map-legend__dot[data-client-type="ThirdPartyAdministrator"] {
+  background: var(--color-client-tpa);
+}
+
+.map-legend__dot[data-client-type="SoftwareVendor"] {
+  background: var(--color-client-softwarevendor);
+}
+
+.map-legend__dot[data-client-type="FundOfFundDealingDesk"] {
+  background: var(--color-client-fundoffunddesk);
+}
+
+.map-legend__dot[data-client-type="FundAccountant"] {
+  background: var(--color-client-fundaccountant);
+}
+
+.map-legend__dot[data-client-type="unclassified"] {
+  background: var(--color-text-faint);
 }

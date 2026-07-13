@@ -38,6 +38,17 @@
   border-color: rgba(254, 221, 0, 0.35);
 }
 
+/* Calastone brand accent — a subtle top border + label tint, not a bold
+   fill, so three KPI tiles in a row stay legible as a set rather than
+   competing for attention (see grilling session). */
+.kpi-card[data-accent="blue"] {
+  border-top: 3px solid var(--color-calastone-blue);
+}
+
+.kpi-card[data-accent="teal"] {
+  border-top: 3px solid var(--color-calastone-teal);
+}
+
 .kpi-card__label {
   font-size: 10px;
   font-weight: 700;
@@ -47,6 +58,14 @@
 
 .kpi-card[data-variant="risk"] .kpi-card__label {
   color: #b58b00;
+}
+
+.kpi-card[data-accent="blue"] .kpi-card__label {
+  color: var(--color-calastone-blue);
+}
+
+.kpi-card[data-accent="teal"] .kpi-card__label {
+  color: var(--color-calastone-teal);
 }
 
 .kpi-card__value {
@@ -399,9 +418,19 @@
 }
 
 .live-feed__account {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
   font-size: var(--text-sm);
   font-weight: 600;
   color: var(--color-text);
+}
+
+.live-feed__client-type-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+  flex-shrink: 0;
 }
 
 .live-feed__type-chip {
@@ -540,9 +569,19 @@
 }
 
 .top-open-deals__account {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
   font-size: 12px;
   font-weight: 700;
   color: var(--color-text);
+}
+
+.top-open-deals__client-type-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+  flex-shrink: 0;
 }
 
 .top-open-deals__amount {
@@ -575,29 +614,3 @@
   white-space: nowrap;
 }
 
-.city-index-row {
-  display: grid;
-  grid-template-columns: 120px 1fr 40px;
-  align-items: center;
-  gap: var(--space-3);
-}
-
-.city-index-row__name {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  color: var(--color-text);
-}
-
-.city-index-row__bar {
-  height: 8px;
-  border-radius: var(--radius-full);
-  background: var(--color-border);
-}
-
-.city-index-row__value {
-  font-family: ui-monospace, "SFMono-Regular", monospace;
-  font-size: 11px;
-  color: var(--color-text-faint);
-  text-align: right;
-}

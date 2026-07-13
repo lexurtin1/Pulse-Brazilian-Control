@@ -10,6 +10,7 @@ import type {
   TopOpenDealsResultDto,
 } from "@pulse-brazil/application";
 import { BrazilMap } from "./components/BrazilMap/BrazilMap";
+import { CesiumGlobe } from "./components/CesiumGlobe/CesiumGlobe";
 import { MapLegend } from "./components/MapLegend/MapLegend";
 import { CreateAccountFAB } from "./components/CreateAccountFAB/CreateAccountFAB";
 import { AccountDossier } from "./components/AccountDossier/AccountDossier";
@@ -19,7 +20,6 @@ import { CommandHeader } from "./components/CommandCentre/CommandHeader";
 import { KpiCard } from "./components/CommandCentre/KpiCard";
 import { FeedControlsCard } from "./components/CommandCentre/FeedControlsCard";
 import { TopOpenDealsCard } from "./components/CommandCentre/TopOpenDealsCard";
-import { CityActivityIndexCard } from "./components/CommandCentre/CityActivityIndexCard";
 import { LiveFeedCard } from "./components/CommandCentre/LiveFeedCard";
 import {
   fetchAccountMapPins,
@@ -60,6 +60,7 @@ export function App() {
   const [activeAccountsSummary, setActiveAccountsSummary] = useState<ActiveAccountsSummaryDto | null>(null);
   const [topOpenDeals, setTopOpenDeals] = useState<TopOpenDealsResultDto | null>(null);
   const [status, setStatus] = useState<LoadState>("loading");
+  const [mapView, setMapView] = useState<"2d" | "globe">("2d");
   const [introDone, setIntroDone] = useState(() => sessionStorage.getItem(INTRO_SESSION_KEY) === "1");
   const mapWrapRef = useRef<HTMLDivElement>(null);
 
@@ -200,6 +201,7 @@ export function App() {
         <div className="command-centre__body">
           <motion.div className="kpi-strip" variants={shellItemVariants}>
             <KpiCard
+              accent="blue"
               label="ACTIVE ACCOUNTS · BR"
               value={activeAccountsSummary ? formatCount(activeAccountsSummary.count) : undefined}
               footnote={
@@ -211,6 +213,7 @@ export function App() {
               }
             />
             <KpiCard
+              accent="teal"
               label="PIPELINE VALUE - UNWEIGHTED"
               value={pipelineSummary ? formatCurrency(pipelineSummary.unweightedValue) : undefined}
               footnote={
@@ -222,6 +225,7 @@ export function App() {
               }
             />
             <KpiCard
+              accent="teal"
               label="PIPELINE VALUE - WEIGHTED"
               value={pipelineSummary ? formatCurrency(pipelineSummary.weightedValue) : undefined}
               footnote={
@@ -239,24 +243,35 @@ export function App() {
             <motion.div className="map-panel" variants={shellItemVariants}>
               <div className="map-panel__header">
                 <span className="map-panel__title">OPERATIONAL MAP · BRAZIL</span>
+                <button
+                  type="button"
+                  className="map-panel__view-toggle"
+                  aria-label={mapView === "2d" ? "Switch to 3D globe view" : "Switch to 2D map view"}
+                  onClick={() => setMapView((view) => (view === "2d" ? "globe" : "2d"))}
+                >
+                  {mapView === "2d" ? "🌐 GLOBE" : "🗺 2D MAP"}
+                </button>
               </div>
               <div className="map-panel__canvas">
                 <div ref={mapWrapRef} className="app-shell__map-live">
-                  <BrazilMap
-                    pins={mapPins}
-                    locationPins={locationPins}
-                    selectedAccountId={selectedAccountId}
-                    onSelectAccount={handleSelectAccount}
-                    onSelectLocationPin={setSelectedLocationPin}
-                  />
+                  {mapView === "2d" ? (
+                    <BrazilMap
+                      pins={mapPins}
+                      locationPins={locationPins}
+                      selectedAccountId={selectedAccountId}
+                      onSelectAccount={handleSelectAccount}
+                      onSelectLocationPin={setSelectedLocationPin}
+                    />
+                  ) : (
+                    <CesiumGlobe pins={mapPins} selectedAccountId={selectedAccountId} onSelectAccount={handleSelectAccount} />
+                  )}
                 </div>
                 <MapLegend pins={mapPins} />
               </div>
             </motion.div>
 
             <motion.div className="right-rail" variants={shellItemVariants}>
-              <TopOpenDealsCard topOpenDeals={topOpenDeals} />
-              <CityActivityIndexCard />
+              <TopOpenDealsCard topOpenDeals={topOpenDeals} accountsById={accountsById} />
               <LiveFeedCard
                 signals={signals}
                 accountsById={accountsById}

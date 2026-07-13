@@ -46,3 +46,19 @@
   outline: 2px solid var(--color-primary);
   outline-offset: 2px;
 }
+
+/* Upload document — Calastone Green accent, distinct from the Perplexity
+   sweep button next to it, which keeps the app's teal accent. */
+.feed-action-button--upload {
+  border-color: color-mix(in srgb, var(--color-calastone-green) 50%, transparent);
+  background: color-mix(in srgb, var(--color-calastone-green) 14%, var(--color-surface));
+  color: var(--color-calastone-green);
+}
+
+.feed-action-button--upload:hover {
+  background: color-mix(in srgb, var(--color-calastone-green) 22%, var(--color-surface));
+}
+
+.feed-action-button--upload:focus-visible {
+  outline-color: var(--color-calastone-green);
+}

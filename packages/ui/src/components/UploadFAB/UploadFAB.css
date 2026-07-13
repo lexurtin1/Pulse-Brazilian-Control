@@ -7,7 +7,7 @@
   height: 56px;
   border-radius: var(--radius-full);
   border: none;
-  background: var(--color-primary);
+  background: var(--color-calastone-green);
   color: var(--color-on-accent);
   display: flex;
   align-items: center;
@@ -18,16 +18,16 @@
 }
 
 .upload-fab:hover {
-  background: var(--color-primary-hover);
+  filter: brightness(0.92);
   transform: translateY(-1px);
 }
 
 .upload-fab:active {
-  background: var(--color-primary-active);
+  filter: brightness(0.85);
 }
 
 .upload-fab:focus-visible {
-  outline: 2px solid var(--color-primary);
+  outline: 2px solid var(--color-calastone-green);
   outline-offset: 3px;
 }
 

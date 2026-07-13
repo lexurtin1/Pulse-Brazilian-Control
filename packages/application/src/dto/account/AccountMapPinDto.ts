@@ -8,6 +8,7 @@ export interface AccountMapPinDto {
   id: string;
   name: string;
   temperatureBand?: string;
+  clientTypes: string[];
   coordinate: AccountMapPinCoordinateDto;
   verificationState: string;
 }

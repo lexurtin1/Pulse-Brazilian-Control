@@ -28,6 +28,7 @@ export function toAccountSummaryDto(account: Account, latestTemperature: Tempera
     type: account.accountType,
     status: account.status,
     temperatureBand: latestTemperature?.band,
+    clientTypes: [...account.clientTypes],
     primaryLocation,
     latestAssessmentDate: latestTemperature?.assessedAt.toISOString(),
   };

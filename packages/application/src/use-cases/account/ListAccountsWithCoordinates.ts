@@ -31,6 +31,7 @@ export class ListAccountsWithCoordinates {
         id: account.id,
         name: account.name,
         temperatureBand: account.latestTemperature?.band,
+        clientTypes: [...account.clientTypes],
         coordinate: { latitude: coordinate.latitude, longitude: coordinate.longitude },
         verificationState: office.verificationState,
       });
