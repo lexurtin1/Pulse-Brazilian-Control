@@ -1,49 +1,48 @@
-/* Collapsed by default (just the toggle pill); the full panel expands on
-   hover/focus so it doesn't compete with the map for space until wanted. */
+/* A permanent vertical stack of pills along the map's left edge — always
+   visible, no hover/expand step, since it now doubles as a filter control
+   rather than a purely informational legend. */
 .map-legend {
   position: absolute;
+  top: var(--space-4);
   left: var(--space-4);
   bottom: var(--space-4);
   z-index: 5;
-  background: var(--color-surface);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-sm);
-  font-size: var(--text-xs);
-  color: var(--color-text-muted);
-  cursor: default;
-}
-
-.map-legend__toggle {
-  display: block;
-  padding: var(--space-2) var(--space-4);
-}
-
-.map-legend__panel {
-  display: none;
-  flex-wrap: wrap;
-  gap: var(--space-1) var(--space-4);
-  max-width: 260px;
-  padding: 0 var(--space-4) var(--space-3);
-}
-
-.map-legend:hover .map-legend__panel,
-.map-legend:focus-within .map-legend__panel,
-.map-legend:focus .map-legend__panel {
   display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  align-items: flex-start;
+  overflow-y: auto;
 }
 
-.map-legend:hover .map-legend__toggle,
-.map-legend:focus-within .map-legend__toggle,
-.map-legend:focus .map-legend__toggle {
-  padding-bottom: var(--space-1);
-  font-weight: 600;
-  color: var(--color-text);
-}
-
-.map-legend__item {
-  display: flex;
+.map-legend__pill {
+  display: inline-flex;
   align-items: center;
   gap: var(--space-2);
+  padding: 6px 14px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--color-border);
+  background: color-mix(in srgb, var(--color-surface) 60%, transparent);
+  backdrop-filter: blur(6px);
+  color: var(--color-text);
+  font-size: var(--text-xs);
+  font-family: var(--font-body);
+  cursor: pointer;
+  transition: opacity 0.15s ease, transform 0.1s ease;
+}
+
+.map-legend__pill:hover {
+  transform: translateX(3px);
+}
+
+.map-legend__pill:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* Toggled off — dimmed to read as "hidden" without disappearing, so it
+   stays clickable to bring the client type back. */
+.map-legend__pill[aria-pressed="false"] {
+  opacity: 0.35;
 }
 
 .map-legend__dot {

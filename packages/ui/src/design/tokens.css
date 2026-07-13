@@ -103,17 +103,17 @@
   /* Map tiers — used by the entry-animation SVG reveal only. The live map
      itself dropped the Brazil/LATAM/world fill wash: with only Brazil ever
      shown on screen, a full-country green fill added no information and
-     just made pins harder to see against it (see BrazilMap.tsx). */
+     just made pins harder to see against it. */
   --color-map-brazil: #1a7a4a;
   --color-map-latam: #c8c4bc;
   --color-map-latam-opacity: 0.6;
   --color-map-world: #e8e6e0;
   --color-map-world-opacity: 0.3;
 
-  /* Location-record marker colors (BrazilMap.tsx) — deliberately distinct
-     from --color-primary/--color-temp-* (account temperature) so an Office
-     pin and a Hot account never render as the same color and get confused
-     for one another. */
+  /* Location-record marker colors — deliberately distinct from
+     --color-primary/--color-temp-* (account temperature) so an Office pin
+     and a Hot account never render as the same color and get confused for
+     one another. */
   --color-location-office: #2f5f9e;
   --color-location-event: #b3631f;
   --color-location-visit: #7a3f8f;

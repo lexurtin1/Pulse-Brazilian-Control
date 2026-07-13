@@ -129,38 +129,6 @@
   color: var(--color-text);
 }
 
-/* Same shape/behavior as .command-header__theme-toggle — a pill button
-   that flips a two-state label, so the map-view toggle reads as the same
-   control family as the theme toggle rather than a one-off. */
-.map-panel__view-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 5px 14px;
-  border-radius: var(--radius-full);
-  border: 1px solid var(--color-border);
-  background: var(--color-surface-2);
-  color: var(--color-text);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  cursor: pointer;
-  transition: background-color var(--transition-interactive);
-}
-
-.map-panel__view-toggle:hover {
-  background: var(--color-surface-offset);
-}
-
-.map-panel__view-toggle:active {
-  transform: translateY(1px);
-}
-
-.map-panel__view-toggle:focus-visible {
-  outline: 2px solid var(--color-primary);
-  outline-offset: 2px;
-}
-
 .map-panel__canvas {
   position: relative;
   flex: 1;

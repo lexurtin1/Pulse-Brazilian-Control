@@ -9,7 +9,6 @@ import type {
   SignalDto,
   TopOpenDealsResultDto,
 } from "@pulse-brazil/application";
-import { BrazilMap } from "./components/BrazilMap/BrazilMap";
 import { CesiumGlobe } from "./components/CesiumGlobe/CesiumGlobe";
 import { MapLegend } from "./components/MapLegend/MapLegend";
 import { CreateAccountFAB } from "./components/CreateAccountFAB/CreateAccountFAB";
@@ -31,6 +30,7 @@ import {
   fetchTopOpenDeals,
 } from "./api/client";
 import { formatCount, formatCountDelta, formatCurrency, formatCurrencyDelta, formatShortDate } from "./utils/formatNumbers";
+import { primaryClientType } from "./utils/clientType";
 import "./components/CommandCentre/CommandCentre.css";
 import "./App.css";
 
@@ -60,7 +60,7 @@ export function App() {
   const [activeAccountsSummary, setActiveAccountsSummary] = useState<ActiveAccountsSummaryDto | null>(null);
   const [topOpenDeals, setTopOpenDeals] = useState<TopOpenDealsResultDto | null>(null);
   const [status, setStatus] = useState<LoadState>("loading");
-  const [mapView, setMapView] = useState<"2d" | "globe">("2d");
+  const [hiddenClientTypes, setHiddenClientTypes] = useState<ReadonlySet<string | undefined>>(() => new Set());
   const [introDone, setIntroDone] = useState(() => sessionStorage.getItem(INTRO_SESSION_KEY) === "1");
   const mapWrapRef = useRef<HTMLDivElement>(null);
 
@@ -163,6 +163,24 @@ export function App() {
 
   const accountsById = useMemo(() => new Map(accounts.map((account) => [account.id, account])), [accounts]);
 
+  // Clicking a legend pill hides/shows that client type's pins on the map —
+  // the legend itself always lists every client type (driven by the full,
+  // unfiltered mapPins) so a hidden type's pill never disappears and stays
+  // clickable to bring it back.
+  const toggleClientType = useCallback((clientType: string | undefined) => {
+    setHiddenClientTypes((current) => {
+      const next = new Set(current);
+      if (next.has(clientType)) next.delete(clientType);
+      else next.add(clientType);
+      return next;
+    });
+  }, []);
+
+  const visibleMapPins = useMemo(
+    () => mapPins.filter((pin) => !hiddenClientTypes.has(primaryClientType(pin.clientTypes))),
+    [mapPins, hiddenClientTypes],
+  );
+
   const showIntro = status === "ready" && !introDone;
 
   // Set the "seen" flag as soon as the intro starts, not when it finishes —
@@ -243,30 +261,18 @@ export function App() {
             <motion.div className="map-panel" variants={shellItemVariants}>
               <div className="map-panel__header">
                 <span className="map-panel__title">OPERATIONAL MAP · BRAZIL</span>
-                <button
-                  type="button"
-                  className="map-panel__view-toggle"
-                  aria-label={mapView === "2d" ? "Switch to 3D globe view" : "Switch to 2D map view"}
-                  onClick={() => setMapView((view) => (view === "2d" ? "globe" : "2d"))}
-                >
-                  {mapView === "2d" ? "🌐 GLOBE" : "🗺 2D MAP"}
-                </button>
               </div>
               <div className="map-panel__canvas">
                 <div ref={mapWrapRef} className="app-shell__map-live">
-                  {mapView === "2d" ? (
-                    <BrazilMap
-                      pins={mapPins}
-                      locationPins={locationPins}
-                      selectedAccountId={selectedAccountId}
-                      onSelectAccount={handleSelectAccount}
-                      onSelectLocationPin={setSelectedLocationPin}
-                    />
-                  ) : (
-                    <CesiumGlobe pins={mapPins} selectedAccountId={selectedAccountId} onSelectAccount={handleSelectAccount} />
-                  )}
+                  <CesiumGlobe
+                    pins={visibleMapPins}
+                    locationPins={locationPins}
+                    selectedAccountId={selectedAccountId}
+                    onSelectAccount={handleSelectAccount}
+                    onSelectLocationPin={setSelectedLocationPin}
+                  />
                 </div>
-                <MapLegend pins={mapPins} />
+                <MapLegend pins={mapPins} hiddenClientTypes={hiddenClientTypes} onToggleClientType={toggleClientType} />
               </div>
             </motion.div>
 

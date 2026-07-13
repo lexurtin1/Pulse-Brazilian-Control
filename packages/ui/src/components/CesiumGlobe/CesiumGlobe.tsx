@@ -1,15 +1,29 @@
 import { useEffect, useRef } from "react";
 import * as Cesium from "cesium";
 import "cesium/Build/Cesium/Widgets/widgets.css";
-import type { AccountMapPinDto } from "@pulse-brazil/application";
+import type { AccountMapPinDto, LocationRecordMapPinDto } from "@pulse-brazil/application";
 import { clientTypeColorVar, primaryClientType } from "../../utils/clientType";
 import "./CesiumGlobe.css";
 
 interface CesiumGlobeProps {
   pins: AccountMapPinDto[];
+  locationPins?: LocationRecordMapPinDto[];
   selectedAccountId: string | null;
   onSelectAccount?: (accountId: string) => void;
+  onSelectLocationPin?: (pin: LocationRecordMapPinDto) => void;
 }
+
+// One fixed color per LocationRecordKind — mirrors the palette the 2D map
+// used, deliberately distinct from --color-primary/--color-client-* (account
+// client-type pins use those), so an Office pin is never the same color as
+// an account pin.
+const LOCATION_KIND_COLOR_VAR: Record<string, string> = {
+  Office: "--color-location-office",
+  Event: "--color-location-event",
+  Visit: "--color-location-visit",
+  SignalLocation: "--color-text-muted",
+  Other: "--color-text-faint",
+};
 
 // Cesium.Color.fromCssColorString takes a CSS color string directly — no
 // need for BrazilMap's [r,g,b] array conversion (deck.gl-specific).
@@ -17,7 +31,7 @@ function cssColorString(varName: string): string {
   return getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
 }
 
-// Same real extent BrazilMap fits to (mainland + offshore islands), used
+// Same real extent BrazilMap fit to (mainland + offshore islands), used
 // here for the globe's default camera view.
 const BRAZIL_RECTANGLE = Cesium.Rectangle.fromDegrees(-74, -34, -29, 6);
 
@@ -32,13 +46,35 @@ const BRAZIL_CENTER_LATITUDE = -14;
 const SPACE_ALTITUDE_METERS = 25_000_000;
 const FLY_IN_DURATION_SECONDS = 3;
 
-const SELECTED_ALTITUDE_METERS = 80_000;
+// Pins read as large landmarks from a whole-Brazil-or-further view, then
+// shrink down as you zoom into a city/account so they don't dominate the
+// close-up view. One shared curve (a multiplier on each entity's own base
+// pixelSize) rather than per-kind constants, so account and location pins
+// shrink at the same rate and stay proportionate to each other at any zoom.
+const PIN_SCALE_NEAR_DISTANCE_METERS = 50_000;
+const PIN_SCALE_NEAR_FACTOR = 0.4;
+const PIN_SCALE_FAR_DISTANCE_METERS = 3_000_000;
+const PIN_SCALE_FAR_FACTOR = 1.0;
+const PIN_SCALE_BY_DISTANCE = new Cesium.NearFarScalar(
+  PIN_SCALE_NEAR_DISTANCE_METERS,
+  PIN_SCALE_NEAR_FACTOR,
+  PIN_SCALE_FAR_DISTANCE_METERS,
+  PIN_SCALE_FAR_FACTOR,
+);
 
-export function CesiumGlobe({ pins, selectedAccountId, onSelectAccount }: CesiumGlobeProps) {
+const ACCOUNT_PIN_BASE_SIZE = 20;
+const ACCOUNT_PIN_SELECTED_BASE_SIZE = 24;
+const LOCATION_PIN_BASE_SIZE = 16;
+
+export function CesiumGlobe({ pins, locationPins = [], selectedAccountId, onSelectAccount, onSelectLocationPin }: CesiumGlobeProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<Cesium.Viewer | null>(null);
   const onSelectAccountRef = useRef(onSelectAccount);
   onSelectAccountRef.current = onSelectAccount;
+  const onSelectLocationPinRef = useRef(onSelectLocationPin);
+  onSelectLocationPinRef.current = onSelectLocationPin;
+  const locationPinsRef = useRef(locationPins);
+  locationPinsRef.current = locationPins;
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -65,9 +101,8 @@ export function CesiumGlobe({ pins, selectedAccountId, onSelectAccount }: Cesium
 
     // Cinematic entrance: start pulled back far enough to see the globe's
     // curvature, then fly down into the same fitted Brazil view BrazilMap
-    // opens on. Runs on every mount — the toggle in App.tsx conditionally
-    // renders BrazilMap vs CesiumGlobe, so switching to the globe view
-    // always mounts a fresh instance and replays this.
+    // used to open on. Runs on every mount — the toggle in App.tsx
+    // conditionally renders CesiumGlobe, so mounting it always replays this.
     viewer.camera.setView({
       destination: Cesium.Cartesian3.fromDegrees(BRAZIL_CENTER_LONGITUDE, BRAZIL_CENTER_LATITUDE, SPACE_ALTITUDE_METERS),
     });
@@ -87,8 +122,17 @@ export function CesiumGlobe({ pins, selectedAccountId, onSelectAccount }: Cesium
 
     viewer.screenSpaceEventHandler.setInputAction((click: Cesium.ScreenSpaceEventHandler.PositionedEvent) => {
       const picked = viewer.scene.pick(click.position);
-      const accountId = picked?.id?.properties?.accountId?.getValue();
-      if (accountId) onSelectAccountRef.current?.(accountId);
+      const properties = picked?.id?.properties;
+      const accountId = properties?.accountId?.getValue();
+      if (accountId) {
+        onSelectAccountRef.current?.(accountId);
+        return;
+      }
+      const locationPinId = properties?.locationPinId?.getValue();
+      if (locationPinId) {
+        const pin = locationPinsRef.current.find((p) => p.id === locationPinId);
+        if (pin) onSelectLocationPinRef.current?.(pin);
+      }
     }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
 
     viewerRef.current = viewer;
@@ -103,9 +147,9 @@ export function CesiumGlobe({ pins, selectedAccountId, onSelectAccount }: Cesium
     };
   }, []);
 
-  // Account pins as Cesium point Entities — the same ClientType colors as
-  // BrazilMap's deck.gl ScatterplotLayer, so an account reads as the same
-  // color in both views.
+  // Account + location-record pins as Cesium point Entities, colored the
+  // same as the rest of the dashboard. scaleByDistance makes every pin read
+  // as a large landmark zoomed out and shrink down on approach.
   useEffect(() => {
     const viewer = viewerRef.current;
     if (!viewer) return;
@@ -124,16 +168,38 @@ export function CesiumGlobe({ pins, selectedAccountId, onSelectAccount }: Cesium
         position: Cesium.Cartesian3.fromDegrees(pin.coordinate.longitude, pin.coordinate.latitude),
         properties: { accountId: pin.id },
         point: {
-          pixelSize: selected ? 14 : 10,
+          pixelSize: selected ? ACCOUNT_PIN_SELECTED_BASE_SIZE : ACCOUNT_PIN_BASE_SIZE,
           color: fillColor,
           outlineColor: selected ? activeColor : surfaceColor,
           outlineWidth: selected ? 3 : 2,
           disableDepthTestDistance: Number.POSITIVE_INFINITY,
+          scaleByDistance: PIN_SCALE_BY_DISTANCE,
         },
       });
     }
-  }, [pins, selectedAccountId]);
 
+    for (const pin of locationPins) {
+      const fillColor = Cesium.Color.fromCssColorString(cssColorString(LOCATION_KIND_COLOR_VAR[pin.kind] ?? "--color-text-faint"));
+
+      viewer.entities.add({
+        id: `location-pin-${pin.id}`,
+        position: Cesium.Cartesian3.fromDegrees(pin.coordinate.longitude, pin.coordinate.latitude),
+        properties: { locationPinId: pin.id },
+        point: {
+          pixelSize: LOCATION_PIN_BASE_SIZE,
+          color: fillColor.withAlpha(pin.reviewStatus === "ReviewRequired" ? 0.6 : 1),
+          outlineColor: surfaceColor,
+          outlineWidth: 2,
+          disableDepthTestDistance: Number.POSITIVE_INFINITY,
+          scaleByDistance: PIN_SCALE_BY_DISTANCE,
+        },
+      });
+    }
+  }, [pins, locationPins, selectedAccountId]);
+
+  // Selecting an account recenters the camera on it but keeps whatever
+  // altitude the user is currently at — clicking a pin should never yank
+  // the zoom level out from under someone who's already framed a close-up.
   useEffect(() => {
     const viewer = viewerRef.current;
     if (!viewer) return;
@@ -141,8 +207,10 @@ export function CesiumGlobe({ pins, selectedAccountId, onSelectAccount }: Cesium
     const pin = pins.find((p) => p.id === selectedAccountId);
     if (!pin) return;
 
+    const currentAltitude = viewer.camera.positionCartographic.height;
+
     viewer.camera.flyTo({
-      destination: Cesium.Cartesian3.fromDegrees(pin.coordinate.longitude, pin.coordinate.latitude, SELECTED_ALTITUDE_METERS),
+      destination: Cesium.Cartesian3.fromDegrees(pin.coordinate.longitude, pin.coordinate.latitude, currentAltitude),
       duration: 1.2,
     });
   }, [selectedAccountId, pins]);
@@ -164,6 +232,17 @@ export function CesiumGlobe({ pins, selectedAccountId, onSelectAccount }: Cesium
             onClick={() => onSelectAccount?.(pin.id)}
           >
             {pin.name}
+          </button>
+        ))}
+        {locationPins.map((pin) => (
+          <button
+            key={pin.id}
+            type="button"
+            className="cesium-globe__a11y-pin"
+            aria-label={`${pin.label} (${pin.kind})`}
+            onClick={() => onSelectLocationPin?.(pin)}
+          >
+            {pin.label}
           </button>
         ))}
       </div>
