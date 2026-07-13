@@ -313,15 +313,16 @@ Decisions (grilled 2026-07-13):
   unmatched name (surfaced instead), and **never overwrites an existing
   office location** — only fills one in if the account currently has none.
 
-Migration `015_add_account_salesforce_profile.sql` is applied in
-production (confirmed via the Vercel build log, 2026-07-13). The actual
-data write is **not yet done** — this sandboxed environment can't reach
-the production Postgres directly (`ECONNRESET` on the raw connection,
-same as the migration runner originally hit; Vercel's own network can
-reach it fine, which is how the migration got applied). Deferred by
-request rather than routed through another temporary admin endpoint. To
-run it: `DATABASE_URL=... npm run reconcile:accounts --workspace=@pulse-brazil/infrastructure`
-from a network that can reach Neon directly.
+**Done — run against production 2026-07-13.** Migration
+`015_add_account_salesforce_profile.sql` applied (confirmed via the Vercel
+build log). The raw Postgres port (5432) was blocked outbound from this
+environment (`ECONNRESET`) but HTTPS wasn't — `reconcile-salesforce-accounts.ts`
+now runs over `@neondatabase/serverless`'s HTTPS-based `Pool` instead of
+the usual `pg`-based one, structurally compatible enough to drop into
+`PostgresAccountRepository` unchanged. Result: all 44 accounts matched by
+name and enriched, 0 rejected, 0 unmatched — spot-checked directly against
+production (client types, owner, cohort year, open-opportunity count,
+mapped status, and Salesforce external reference all confirmed correct).
 
 ---
 
