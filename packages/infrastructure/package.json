@@ -10,7 +10,8 @@
     "build": "tsc",
     "typecheck": "tsc --noEmit",
     "migrate": "tsx src/db/run-migrations.ts",
-    "seed": "tsx src/db/seed.ts"
+    "seed": "tsx src/db/seed.ts",
+    "reconcile:accounts": "tsx src/db/reconcile-salesforce-accounts.ts"
   },
   "devDependencies": {
     "typescript": "^5.5.0",
