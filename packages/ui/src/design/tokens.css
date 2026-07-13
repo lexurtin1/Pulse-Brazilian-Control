@@ -42,19 +42,26 @@
   --color-temp-cold: #b0afa9;
   --color-temp-cold-bg: #eceae5;
 
-  /* Signal-type chip colors — one pair per real SignalType enum value. */
-  --signal-regulatorychange-text: #2d5a27;
-  --signal-regulatorychange-bg: #dce8da;
-  --signal-competitiveintelligence-text: #8a5a1e;
-  --signal-competitiveintelligence-bg: #f0e4d0;
-  --signal-marketstructure-text: #3f5468;
-  --signal-marketstructure-bg: #dfe6ec;
-  --signal-crossborder-text: #2f5c52;
-  --signal-crossborder-bg: #d9e8e3;
-  --signal-tokenisation-text: #2f5c45;
-  --signal-tokenisation-bg: #dbe8e0;
-  --signal-etf-text: #2c5f6b;
-  --signal-etf-bg: #d7e6e8;
+  /* Signal-type chip colors — one pair per real SignalType enum value. The
+     6 market-sweep topics (RegulatoryChange, CompetitiveIntelligence,
+     CrossBorder, Tokenisation, ETF, MarketStructure) are deliberately spread
+     across distinct hue families (red/orange/violet/teal/blue/amber) rather
+     than variations on green — the live feed's filter chips and per-card
+     tags both key off these, so they need to actually read as different
+     colors at a glance, not just differ in the hex value. Each pair clears
+     4.5:1 text-on-its-own-bg contrast (computed, not eyeballed). */
+  --signal-regulatorychange-text: #b23b3b;
+  --signal-regulatorychange-bg: #f5dcdc;
+  --signal-competitiveintelligence-text: #954410;
+  --signal-competitiveintelligence-bg: #f5e2d0;
+  --signal-marketstructure-text: #8a6300;
+  --signal-marketstructure-bg: #f5ecd0;
+  --signal-crossborder-text: #5b3fa0;
+  --signal-crossborder-bg: #e6e0f5;
+  --signal-tokenisation-text: #0f6b51;
+  --signal-tokenisation-bg: #d3ede4;
+  --signal-etf-text: #1f5fa8;
+  --signal-etf-bg: #d9e7f5;
   --signal-orderrouting-text: #5f5c2c;
   --signal-orderrouting-bg: #e9e7cf;
   --signal-accountspecific-text: #79452c;
@@ -173,19 +180,20 @@
     --color-temp-cold: #6e6a62;
     --color-temp-cold-bg: #2a2823;
 
-    /* Signal-type chip colors */
-    --signal-regulatorychange-text: #55a85c;
-    --signal-regulatorychange-bg: #1f351f;
-    --signal-competitiveintelligence-text: #c99a52;
-    --signal-competitiveintelligence-bg: #362c1c;
-    --signal-marketstructure-text: #7f97a8;
-    --signal-marketstructure-bg: #212a30;
-    --signal-crossborder-text: #4f9a89;
-    --signal-crossborder-bg: #1e332e;
-    --signal-tokenisation-text: #4f9a68;
-    --signal-tokenisation-bg: #1e3327;
-    --signal-etf-text: #4f8f9c;
-    --signal-etf-bg: #1e2f33;
+    /* Signal-type chip colors — same distinct hue families as light mode,
+       restepped bright-text/dark-bg for the dark surface. */
+    --signal-regulatorychange-text: #e87a7a;
+    --signal-regulatorychange-bg: #3a1f1f;
+    --signal-competitiveintelligence-text: #e8935a;
+    --signal-competitiveintelligence-bg: #3a2818;
+    --signal-marketstructure-text: #e0b04a;
+    --signal-marketstructure-bg: #3a2f16;
+    --signal-crossborder-text: #a68ce8;
+    --signal-crossborder-bg: #291f3a;
+    --signal-tokenisation-text: #4fd9ae;
+    --signal-tokenisation-bg: #163b2e;
+    --signal-etf-text: #6badf0;
+    --signal-etf-bg: #16283a;
     --signal-orderrouting-text: #b8a94a;
     --signal-orderrouting-bg: #33301c;
     --signal-accountspecific-text: #c17d55;

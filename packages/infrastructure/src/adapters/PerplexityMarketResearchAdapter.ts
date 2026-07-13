@@ -23,11 +23,13 @@ const RESPONSE_SCHEMA = {
       type: "array",
       items: { type: "string" },
       maxItems: 3,
-      description: "Up to 3 short, distinct bullet points (roughly one sentence each) covering genuinely new developments. Empty if there is nothing new since the prior findings supplied in the prompt.",
+      description:
+        "Up to 3 short, distinct bullet points covering genuinely new developments, each no more than about 15 words. Write for a salesperson skimming a feed, not an analyst: plain everyday English, no jargon, acronyms, or ticker/statute-style references without a one-word explanation of why it matters. State the headline fact plainly (who did what), not the mechanism behind it. Empty if there is nothing new since the prior findings supplied in the prompt.",
     },
     detail: {
       type: "string",
-      description: "A short paragraph synthesising the bullets with a bit more context. Empty string if bullets is empty.",
+      description:
+        "2-3 plain-English sentences giving a bit more context behind the bullets, still written for a business reader with no domain jargon. Empty string if bullets is empty.",
     },
   },
   required: ["bullets", "detail"],
@@ -84,7 +86,7 @@ export class PerplexityMarketResearchAdapter implements IMarketResearchService {
         {
           role: "system",
           content:
-            "You are a market intelligence analyst tracking the Brazilian fund distribution and asset servicing market on behalf of Calastone, a cross-border fund order-routing and settlement network. Answer factually and concisely, grounded only in real web search results. Respond with the exact JSON shape requested — no markdown, no prose outside the JSON.",
+            "You are writing a market news feed for a Calastone salesperson who covers Brazil, not for a fellow analyst. Calastone is a cross-border fund order-routing and settlement network. Ground everything in real web search results, but translate it into short, plain-English, non-technical language — imagine explaining it out loud to a colleague, not writing a research note. Avoid financial jargon, regulatory citation numbers, and acronyms unless you also say in plain terms why it matters. Respond with the exact JSON shape requested — no markdown, no prose outside the JSON.",
         },
         { role: "user", content: buildUserMessage(query) },
       ],
