@@ -141,6 +141,14 @@ export class PostgresDocumentRepository implements IDocumentRepository {
     return rows.map(rowToDocument);
   }
 
+  async findByDeclaredType(declaredType: DocumentType): Promise<SourceDocument[]> {
+    const { rows } = await this.pool.query<DocumentRow>(
+      "SELECT * FROM documents WHERE declared_type = $1 ORDER BY created_at DESC",
+      [declaredType],
+    );
+    return rows.map(rowToDocument);
+  }
+
   async save(document: SourceDocument): Promise<void> {
     await this.pool.query(
       `

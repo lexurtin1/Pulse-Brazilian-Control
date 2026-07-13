@@ -2,11 +2,15 @@ import type {
   AccountDetailDto,
   AccountMapPinDto,
   AccountSummaryDto,
+  ActiveAccountsSummaryDto,
   ImportLocationCsvResultDto,
+  ImportPipelineCsvResultDto,
   LocationRecordMapPinDto,
+  PipelineSummaryDto,
   ProcessDocumentUploadResultDto,
   RunMarketResearchSweepResult,
   SignalDto,
+  TopOpenDealsResultDto,
 } from "@pulse-brazil/application";
 
 async function fetchJson<T>(path: string): Promise<T> {
@@ -34,6 +38,10 @@ export function fetchAccounts(): Promise<AccountSummaryDto[]> {
   return fetchJson("/api/accounts");
 }
 
+export function fetchActiveAccountsSummary(): Promise<ActiveAccountsSummaryDto | null> {
+  return fetchJson("/api/accounts?summary=1");
+}
+
 export function fetchAccountMapPins(): Promise<AccountMapPinDto[]> {
   return fetchJson("/api/accounts/map-pins");
 }
@@ -57,6 +65,22 @@ export function importLocationCsv(params: {
   uploadedBy?: string;
 }): Promise<ImportLocationCsvResultDto> {
   return postJson("/api/locations/import", params);
+}
+
+export function importPipelineCsv(params: {
+  csvText: string;
+  originalFilename?: string;
+  uploadedBy?: string;
+}): Promise<ImportPipelineCsvResultDto> {
+  return postJson("/api/pipeline/import", params);
+}
+
+export function fetchPipelineSummary(): Promise<PipelineSummaryDto | null> {
+  return fetchJson("/api/pipeline/summary");
+}
+
+export function fetchTopOpenDeals(): Promise<TopOpenDealsResultDto | null> {
+  return fetchJson("/api/pipeline/top-open-deals");
 }
 
 export function ingestDocument(params: {

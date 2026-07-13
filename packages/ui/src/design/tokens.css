@@ -1,24 +1,31 @@
 :root {
-  /* Surfaces */
-  --color-bg: #f7f6f2;
-  --color-surface: #f9f8f5;
-  --color-surface-2: #fbfbf9;
-  --color-surface-offset: #f0ede8;
-  --color-divider: #dcd9d5;
-  --color-border: #d4d1ca;
+  /* Surfaces — Command Centre palette, lifted from the design reference's
+     light theme (Pulse Brazil Command Centre.dc.html renderVals()). */
+  --color-bg: #f1f6f9;
+  --color-surface: #ffffff;
+  --color-surface-2: #fbfdfe;
+  --color-surface-offset: #eaf2f5;
+  --color-divider: rgba(13, 20, 24, 0.1);
+  --color-border: rgba(13, 20, 24, 0.15);
 
   /* Text */
-  --color-text: #1e1c18;
-  --color-text-muted: #6b6a66;
-  --color-text-faint: #b0afa9;
+  --color-text: #22323d;
+  --color-text-muted: #5b7280;
+  --color-text-faint: #7d939c;
 
-  /* Accent — Deep Forest Green */
-  --color-primary: #2d5a27;
-  --color-primary-hover: #1e3d1a;
-  --color-primary-active: #142910;
-  --color-primary-highlight: #d4e4d2;
+  /* Accent — Command Centre teal. Dark-toned in light mode so it stays
+     readable as both a button background (white text on top) and as
+     standalone text/icon/focus-ring color. */
+  --color-primary: #0c7a68;
+  --color-primary-hover: #0a6656;
+  --color-primary-active: #085346;
+  --color-primary-highlight: #d9f0ec;
   /* Text/icons placed on top of --color-primary (buttons, filled badges) */
   --color-on-accent: #ffffff;
+  /* The literal bright teal from the design reference (#0FB89C) — decorative
+     accents only (LIVE dot, dashed chip borders) where it doesn't have to
+     double as body text. */
+  --color-brand-teal: #0fb89c;
 
   /* Temperature ramp — same semantic colors wherever a band is shown
      (map markers, legend, feed dots, dossier badges). Hot intentionally
@@ -134,25 +141,27 @@
  */
 @media (prefers-color-scheme: dark) {
   :root {
-    /* Surfaces */
-    --color-bg: #17150f;
-    --color-surface: #1e1c16;
-    --color-surface-2: #252219;
-    --color-surface-offset: #100f0a;
-    --color-divider: #322f26;
-    --color-border: #3d392e;
+    /* Surfaces — Command Centre dark palette (renderVals() dark branch) */
+    --color-bg: #0d1418;
+    --color-surface: #16222b;
+    --color-surface-2: #121d24;
+    --color-surface-offset: #121d24;
+    --color-divider: rgba(255, 255, 255, 0.08);
+    --color-border: rgba(255, 255, 255, 0.14);
 
     /* Text */
-    --color-text: #f0eee9;
-    --color-text-muted: #a8a49c;
-    --color-text-faint: #6e6a62;
+    --color-text: #d8e4e8;
+    --color-text-muted: #8fa6b0;
+    --color-text-faint: #536671;
 
-    /* Accent — brightened for contrast against a dark surface */
-    --color-primary: #55a85c;
-    --color-primary-hover: #6bbd72;
-    --color-primary-active: #438a49;
-    --color-primary-highlight: #21351f;
-    --color-on-accent: #12200d;
+    /* Accent — brightened for contrast against a dark surface; on-accent
+       flips to a dark ink since white-on-bright-teal fails contrast. */
+    --color-primary: #3ecfb3;
+    --color-primary-hover: #55dfc5;
+    --color-primary-active: #34b89c;
+    --color-primary-highlight: #12312b;
+    --color-on-accent: #06231c;
+    --color-brand-teal: #0fb89c;
 
     /* Temperature ramp — same brighten-text/darken-bg treatment as the accent above */
     --color-temp-hot: #55a85c;
@@ -199,16 +208,51 @@
 }
 
 /*
- * Looping/pulsing animations are disabled for users who've asked the OS for
- * reduced motion. One-shot entrance transitions (drawer slide-in, sheet
- * slide-up) are left alone — they're brief and not the kind of motion this
- * preference is meant to suppress. The map's own Hot-marker pulse is
- * deck.gl-driven (BrazilMap.tsx) and checks this same media query in JS
- * rather than a CSS rule, since it's a canvas layer, not a DOM animation.
+ * Manual theme toggle (Command Centre header). An explicit choice, once
+ * made, is persisted to localStorage and stamped as data-theme on <html> —
+ * these attribute selectors carry higher specificity than the plain :root
+ * inside the media queries above, so they always win once present. Absent
+ * an explicit choice, the OS-preference rules above still apply.
  */
-@media (prefers-reduced-motion: reduce) {
-  .signal-feed__temp-dot[data-band="Hot"]::after {
-    animation: none !important;
-  }
+:root[data-theme="dark"] {
+  --color-bg: #0d1418;
+  --color-surface: #16222b;
+  --color-surface-2: #121d24;
+  --color-surface-offset: #121d24;
+  --color-divider: rgba(255, 255, 255, 0.08);
+  --color-border: rgba(255, 255, 255, 0.14);
+  --color-text: #d8e4e8;
+  --color-text-muted: #8fa6b0;
+  --color-text-faint: #536671;
+  --color-primary: #3ecfb3;
+  --color-primary-hover: #55dfc5;
+  --color-primary-active: #34b89c;
+  --color-primary-highlight: #12312b;
+  --color-on-accent: #06231c;
+  --color-brand-teal: #0fb89c;
+  --shadow-sm: 0 1px 2px oklch(0 0 0 / 0.4), 0 0 0 1px oklch(1 0 0 / 0.04);
+  --shadow-md: 0 4px 16px oklch(0 0 0 / 0.5), 0 0 0 1px oklch(1 0 0 / 0.06);
+  --shadow-lg: 0 16px 40px oklch(0 0 0 / 0.55), 0 0 0 1px oklch(1 0 0 / 0.07);
+}
+
+:root[data-theme="light"] {
+  --color-bg: #f1f6f9;
+  --color-surface: #ffffff;
+  --color-surface-2: #fbfdfe;
+  --color-surface-offset: #eaf2f5;
+  --color-divider: rgba(13, 20, 24, 0.1);
+  --color-border: rgba(13, 20, 24, 0.15);
+  --color-text: #22323d;
+  --color-text-muted: #5b7280;
+  --color-text-faint: #7d939c;
+  --color-primary: #0c7a68;
+  --color-primary-hover: #0a6656;
+  --color-primary-active: #085346;
+  --color-primary-highlight: #d9f0ec;
+  --color-on-accent: #ffffff;
+  --color-brand-teal: #0fb89c;
+  --shadow-sm: 0 1px 2px oklch(0.2 0.01 80 / 0.06);
+  --shadow-md: 0 4px 12px oklch(0.2 0.01 80 / 0.08);
+  --shadow-lg: 0 12px 32px oklch(0.2 0.01 80 / 0.1), 0 2px 6px oklch(0.2 0.01 80 / 0.06);
 }
 

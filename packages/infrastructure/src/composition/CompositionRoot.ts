@@ -6,13 +6,18 @@ import {
   CreateSignal,
   GenerateInsight,
   GetAccountDetail,
+  GetActiveAccountsSummary,
+  GetPipelineSummary,
+  GetTopOpenDeals,
   ImportLocationCsv,
+  ImportPipelineCsv,
   ListAccounts,
   ListAccountsWithCoordinates,
   ListLocationRecordsForMap,
   ListRecentSignals,
   ListSignalsForAccount,
   ProcessDocumentUpload,
+  ReconcileSalesforceAccounts,
   ResolveAccountCoordinate,
   RunMarketResearchSweep,
   SubmitDocument,
@@ -22,8 +27,10 @@ import type { Pool } from "pg";
 import { ClaudeServiceAdapter } from "../adapters/ClaudeServiceAdapter.js";
 import { GeocoderAdapter } from "../adapters/GeocoderAdapter.js";
 import { PerplexityMarketResearchAdapter } from "../adapters/PerplexityMarketResearchAdapter.js";
+import { PostgresAccountCountSnapshotRepository } from "../adapters/PostgresAccountCountSnapshotRepository.js";
 import { PostgresAccountRepository } from "../adapters/PostgresAccountRepository.js";
 import { PostgresContextBundleRepository } from "../adapters/PostgresContextBundleRepository.js";
+import { PostgresDealRepository } from "../adapters/PostgresDealRepository.js";
 import { PostgresDocumentRepository } from "../adapters/PostgresDocumentRepository.js";
 import { PostgresInsightRepository } from "../adapters/PostgresInsightRepository.js";
 import { PostgresLocationRecordRepository } from "../adapters/PostgresLocationRecordRepository.js";
@@ -70,6 +77,11 @@ export class CompositionRoot {
   readonly importLocationCsv: ImportLocationCsv;
   readonly listLocationRecordsForMap: ListLocationRecordsForMap;
   readonly createAccountFromLocationRecord: CreateAccountFromLocationRecord;
+  readonly importPipelineCsv: ImportPipelineCsv;
+  readonly getPipelineSummary: GetPipelineSummary;
+  readonly getTopOpenDeals: GetTopOpenDeals;
+  readonly getActiveAccountsSummary: GetActiveAccountsSummary;
+  readonly reconcileSalesforceAccounts: ReconcileSalesforceAccounts;
 
   constructor(config: CompositionRootConfig) {
     this.pool = createPool(config.databaseUrl);
@@ -82,6 +94,8 @@ export class CompositionRoot {
     const contextBundles = new PostgresContextBundleRepository(this.pool);
     const temperatureAssessments = new PostgresTemperatureAssessmentRepository(this.pool);
     const locationRecords = new PostgresLocationRecordRepository(this.pool);
+    const deals = new PostgresDealRepository(this.pool);
+    const accountCountSnapshots = new PostgresAccountCountSnapshotRepository(this.pool);
 
     const idGenerator = new UlidIdGenerator();
     const geocoder = new GeocoderAdapter(config.googleMapsApiKey);
@@ -104,9 +118,14 @@ export class CompositionRoot {
     this.processDocumentUpload = new ProcessDocumentUpload(documents, accounts, claudeService, this.createSignal, idGenerator);
     this.generateInsight = new GenerateInsight(insights, claudeService, idGenerator, this.buildContextBundle);
     this.runMarketResearchSweep = new RunMarketResearchSweep(accounts, signals, marketResearch, idGenerator);
-    this.importLocationCsv = new ImportLocationCsv(locationRecords, documents, accounts, geocoder, idGenerator);
+    this.importLocationCsv = new ImportLocationCsv(locationRecords, documents, accounts, geocoder, idGenerator, accountCountSnapshots);
     this.listLocationRecordsForMap = new ListLocationRecordsForMap(locationRecords, accounts);
     this.createAccountFromLocationRecord = new CreateAccountFromLocationRecord(locationRecords, accounts, idGenerator);
+    this.importPipelineCsv = new ImportPipelineCsv(deals, documents, accounts, idGenerator);
+    this.getPipelineSummary = new GetPipelineSummary(deals, documents);
+    this.getTopOpenDeals = new GetTopOpenDeals(deals, documents);
+    this.getActiveAccountsSummary = new GetActiveAccountsSummary(accountCountSnapshots);
+    this.reconcileSalesforceAccounts = new ReconcileSalesforceAccounts(accounts, idGenerator);
   }
 
   /** Closes the underlying pg Pool — call on graceful shutdown. */

@@ -13,5 +13,6 @@ export enum DocumentType {
   ResearchReport = "ResearchReport",
   EmailThread = "EmailThread",
   LocationDataset = "LocationDataset",
+  PipelineDataset = "PipelineDataset",
   Other = "Other",
 }

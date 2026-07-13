@@ -25,15 +25,21 @@ const LOCATION_KIND_COLOR_VAR: Record<string, string> = {
   Other: "--color-text-faint",
 };
 
-const BRAZIL_CENTER: [number, number] = [-51.9253, -14.235];
-const BRAZIL_ZOOM = 3.6;
 const SELECTED_ZOOM = 7;
 
-// Padded well beyond Brazil's own bounds (roughly -74/-34/-34/6) so the
-// initial framing and flyTo animations never feel clipped, but panning
-// still can't wander off into neighboring countries — this is meant to
-// read as "Brazil, standalone," not a world map that happens to start
-// centered on Brazil.
+// Brazil's real extent (mainland + offshore islands like Fernando de
+// Noronha), used to fit the initial view — a fixed zoom level instead
+// showed more or less of the country depending on how much pixel height the
+// surrounding layout left for the map, which is exactly what cropped Brazil
+// out of frame once the Command Centre header/KPI strip took space above it.
+const BRAZIL_BOUNDS: [[number, number], [number, number]] = [
+  [-74, -34],
+  [-29, 6],
+];
+
+// Padded well beyond Brazil's own bounds so panning still can't wander off
+// into neighboring countries — this is meant to read as "Brazil, standalone,"
+// not a world map that happens to start centered on Brazil.
 const BRAZIL_MAX_BOUNDS: [[number, number], [number, number]] = [
   [-78, -37],
   [-30, 8],
@@ -84,8 +90,8 @@ export function BrazilMap({ pins, locationPins = [], selectedAccountId, onSelect
     const map = new maplibregl.Map({
       container: containerRef.current,
       style: MAP_STYLE_URL,
-      center: BRAZIL_CENTER,
-      zoom: BRAZIL_ZOOM,
+      bounds: BRAZIL_BOUNDS,
+      fitBoundsOptions: { padding: 24 },
       maxBounds: BRAZIL_MAX_BOUNDS,
     });
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-left");
@@ -104,20 +110,19 @@ export function BrazilMap({ pins, locationPins = [], selectedAccountId, onSelect
     map.on("load", () => {
       map.addSource("country-tiers", { type: "geojson", data: COUNTRY_TIERS_URL });
 
-      // A thin border only — no fill wash. Drawn on top of the whole style
-      // (no beforeId) since a 1.5px line at partial opacity doesn't obscure
-      // labels/roads even above them, and a boundary line reads most
-      // naturally as the topmost cartographic layer.
-      const brazilColor = cssColor("--color-map-brazil");
+      // A thick, dark, fully-opaque border — deliberately fixed rather than
+      // theme-reactive (stays dark in both light and dark mode) so Brazil
+      // reads as clearly separated from its neighbors without needing to
+      // mask/shade the rest of the map.
       map.addLayer({
         id: "brazil-outline",
         type: "line",
         source: "country-tiers",
         filter: ["==", ["get", "tier"], "brazil"],
         paint: {
-          "line-color": `rgb(${brazilColor.join(",")})`,
-          "line-width": 1.5,
-          "line-opacity": 0.55,
+          "line-color": "#0d1418",
+          "line-width": 3.5,
+          "line-opacity": 1,
         },
       });
     });

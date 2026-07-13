@@ -7,6 +7,8 @@ import "./PerplexitySweepButton.css";
 interface PerplexitySweepButtonProps {
   /** Called after a completed sweep (even with per-account errors), so the caller can refresh the signal feed. */
   onComplete?: () => void;
+  /** "fab" (default): floating circular trigger + fixed popover. "inline": flows as a normal button, for the Command Centre's Feed Controls card. */
+  variant?: "fab" | "inline";
 }
 
 /**
@@ -19,7 +21,7 @@ interface PerplexitySweepButtonProps {
  */
 const DEFAULT_LIMIT = 3;
 
-export function PerplexitySweepButton({ onComplete }: PerplexitySweepButtonProps) {
+export function PerplexitySweepButton({ onComplete, variant = "fab" }: PerplexitySweepButtonProps) {
   const [limit, setLimit] = useState(DEFAULT_LIMIT);
   const [isRunning, setIsRunning] = useState(false);
   const [result, setResult] = useState<RunMarketResearchSweepResult | null>(null);
@@ -41,47 +43,69 @@ export function PerplexitySweepButton({ onComplete }: PerplexitySweepButtonProps
     }
   }
 
+  const panelContent = (
+    <>
+      <label className="perplexity-sweep-panel__limit">
+        Run for
+        <input
+          type="number"
+          min={1}
+          max={200}
+          value={limit}
+          disabled={isRunning}
+          onChange={(event) => {
+            const next = Number(event.target.value);
+            if (Number.isFinite(next) && next >= 1) setLimit(Math.floor(next));
+          }}
+        />
+        account{limit === 1 ? "" : "s"}
+      </label>
+
+      {result && (
+        <div className="perplexity-sweep-result" role="status">
+          <p>
+            <strong>{result.accountsProcessed}</strong> account{result.accountsProcessed === 1 ? "" : "s"} processed,{" "}
+            <strong>{result.signalsCreated}</strong> signal{result.signalsCreated === 1 ? "" : "s"} created.
+          </p>
+          {result.errors.length > 0 && (
+            <ul className="perplexity-sweep-result__errors">
+              {result.errors.map((err) => (
+                <li key={err.accountId}>{err.message}</li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
+      {error && (
+        <div className="perplexity-sweep-result" data-error role="alert">
+          <p>{error}</p>
+        </div>
+      )}
+    </>
+  );
+
+  if (variant === "inline") {
+    return (
+      <div className="feed-controls__perplexity">
+        <button
+          type="button"
+          className="feed-action-button"
+          aria-label={`Run Perplexity research sweep now, limited to ${limit} account${limit === 1 ? "" : "s"}`}
+          disabled={isRunning}
+          onClick={handleClick}
+        >
+          {isRunning ? <Loader2 size={16} strokeWidth={2} className="perplexity-sweep-fab__spin" /> : <Search size={16} strokeWidth={2} />}
+          <span>Perplexity search</span>
+        </button>
+        <div className="perplexity-sweep-panel perplexity-sweep-panel--inline">{panelContent}</div>
+      </div>
+    );
+  }
+
   return (
     <>
-      <div className="perplexity-sweep-panel">
-        <label className="perplexity-sweep-panel__limit">
-          Run for
-          <input
-            type="number"
-            min={1}
-            max={200}
-            value={limit}
-            disabled={isRunning}
-            onChange={(event) => {
-              const next = Number(event.target.value);
-              if (Number.isFinite(next) && next >= 1) setLimit(Math.floor(next));
-            }}
-          />
-          account{limit === 1 ? "" : "s"}
-        </label>
-
-        {result && (
-          <div className="perplexity-sweep-result" role="status">
-            <p>
-              <strong>{result.accountsProcessed}</strong> account{result.accountsProcessed === 1 ? "" : "s"} processed,{" "}
-              <strong>{result.signalsCreated}</strong> signal{result.signalsCreated === 1 ? "" : "s"} created.
-            </p>
-            {result.errors.length > 0 && (
-              <ul className="perplexity-sweep-result__errors">
-                {result.errors.map((err) => (
-                  <li key={err.accountId}>{err.message}</li>
-                ))}
-              </ul>
-            )}
-          </div>
-        )}
-
-        {error && (
-          <div className="perplexity-sweep-result" data-error role="alert">
-            <p>{error}</p>
-          </div>
-        )}
-      </div>
+      <div className="perplexity-sweep-panel">{panelContent}</div>
 
       <button
         type="button"

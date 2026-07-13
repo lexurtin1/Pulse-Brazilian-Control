@@ -10,6 +10,7 @@ import {
   asSignalId,
   asTemperatureAssessmentId,
   asThemeId,
+  ClientType,
   ConfidenceScore,
   Coordinate,
   ExternalReference,
@@ -73,6 +74,10 @@ interface AccountRow {
   linked_signal_ids: string[];
   latest_temperature: TemperatureAssessmentJson | null;
   external_references: ExternalReferenceJson[];
+  client_types: string[];
+  account_owner: string | null;
+  created_cohort_year: string | null;
+  open_opportunity_count: number | null;
 }
 
 function coordinateFromJson(json: CoordinateJson | null): Coordinate | undefined {
@@ -198,6 +203,10 @@ function rowToAccount(row: AccountRow): Account {
       linkedSignalIds: row.linked_signal_ids.map(asSignalId),
       latestTemperature: row.latest_temperature ? temperatureAssessmentFromJson(row.latest_temperature) : undefined,
       externalReferences: row.external_references.map(externalReferenceFromJson),
+      clientTypes: row.client_types.map((value) => value as ClientType),
+      accountOwner: row.account_owner ?? undefined,
+      createdCohortYear: row.created_cohort_year ?? undefined,
+      openOpportunityCount: row.open_opportunity_count ?? undefined,
     });
   } catch (error) {
     throw new Error(`Failed to reconstruct Account ${row.id} from row: ${error instanceof Error ? error.message : String(error)}`);
@@ -238,8 +247,9 @@ export class PostgresAccountRepository implements IAccountRepository {
       INSERT INTO accounts (
         id, name, account_type, status, geographic_scope, office_locations,
         linked_theme_ids, linked_signal_ids, latest_temperature, temperature_band,
-        external_references, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, now())
+        external_references, client_types, account_owner, created_cohort_year,
+        open_opportunity_count, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, now())
       ON CONFLICT (id) DO UPDATE SET
         name = EXCLUDED.name,
         account_type = EXCLUDED.account_type,
@@ -251,6 +261,10 @@ export class PostgresAccountRepository implements IAccountRepository {
         latest_temperature = EXCLUDED.latest_temperature,
         temperature_band = EXCLUDED.temperature_band,
         external_references = EXCLUDED.external_references,
+        client_types = EXCLUDED.client_types,
+        account_owner = EXCLUDED.account_owner,
+        created_cohort_year = EXCLUDED.created_cohort_year,
+        open_opportunity_count = EXCLUDED.open_opportunity_count,
         updated_at = now()
       `,
       [
@@ -269,6 +283,10 @@ export class PostgresAccountRepository implements IAccountRepository {
         account.latestTemperature ? JSON.stringify(temperatureAssessmentToJson(account.latestTemperature)) : null,
         account.latestTemperature?.band ?? null,
         JSON.stringify(account.externalReferences.map(externalReferenceToJson)),
+        JSON.stringify(account.clientTypes),
+        account.accountOwner ?? null,
+        account.createdCohortYear ?? null,
+        account.openOpportunityCount ?? null,
       ],
     );
   }

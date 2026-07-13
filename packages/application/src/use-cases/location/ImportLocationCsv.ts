@@ -1,4 +1,7 @@
 import {
+  AccountCountSnapshot,
+  AccountStatus,
+  asAccountCountSnapshotId,
   asAccountId,
   asDocumentId,
   asLocationRecordId,
@@ -20,12 +23,13 @@ import type { Account, OfficeLocationId } from "@pulse-brazil/domain";
 import type { ImportLocationCsvResultDto, LocationCsvRowErrorDto } from "../../dto/location/ImportLocationCsvResultDto.js";
 import type { LocationRecordDto } from "../../dto/location/LocationRecordDto.js";
 import { ValidationError } from "../../errors/ApplicationError.js";
+import type { IAccountCountSnapshotRepository } from "../../ports/IAccountCountSnapshotRepository.js";
 import type { IAccountRepository } from "../../ports/IAccountRepository.js";
 import type { IDocumentRepository } from "../../ports/IDocumentRepository.js";
 import type { IGeocoder } from "../../ports/IGeocoder.js";
 import type { IIdGenerator } from "../../ports/IIdGenerator.js";
 import type { ILocationRecordRepository } from "../../ports/ILocationRecordRepository.js";
-import { parseLocationCsv } from "../../validation/parseLocationCsv.js";
+import { parseCsv } from "../../validation/parseCsv.js";
 import { validateLocationCsvHeaders, validateLocationCsvRows } from "../../validation/LocationCsvRowValidator.js";
 
 /** Shared with ListLocationRecordsForMap — one mapping from LocationRecord to its full reviewable DTO shape. */
@@ -110,6 +114,7 @@ export class ImportLocationCsv {
     private readonly accounts: IAccountRepository,
     private readonly geocoder: IGeocoder,
     private readonly idGenerator: IIdGenerator,
+    private readonly accountCountSnapshots: IAccountCountSnapshotRepository,
   ) {}
 
   async execute(command: ImportLocationCsvCommand): Promise<ImportLocationCsvResultDto> {
@@ -117,7 +122,7 @@ export class ImportLocationCsv {
       throw new ValidationError("csvText must not be empty");
     }
 
-    const { headers, rows } = parseLocationCsv(command.csvText);
+    const { headers, rows } = parseCsv(command.csvText);
     const missingHeaders = validateLocationCsvHeaders(headers);
     if (missingHeaders.length > 0) {
       throw new ValidationError(`CSV is missing required column(s): ${missingHeaders.join(", ")}`);
@@ -251,6 +256,20 @@ export class ImportLocationCsv {
       ? processingDocument.transitionTo(IngestionState.Classified).transitionTo(IngestionState.Linked)
       : processingDocument.transitionTo(IngestionState.Failed);
     await this.documents.save(finalDocument);
+
+    // Account.status is mutable current state, not an append-only import
+    // artifact like Deal — so "the active count as of this upload" has to
+    // be captured now, not reconstructed later (see
+    // claude/INTEGRATION_PLAN.md Feature 2).
+    const activeCount = [...accountsById.values()].filter((account) => account.status === AccountStatus.Active).length;
+    await this.accountCountSnapshots.save(
+      AccountCountSnapshot.record({
+        id: asAccountCountSnapshotId(this.idGenerator.newId()),
+        count: activeCount,
+        asOf: document.provenance.uploadedAt,
+        sourceDocumentId: document.id,
+      }),
+    );
 
     return {
       sourceDocumentId: document.id,

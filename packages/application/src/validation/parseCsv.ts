@@ -56,7 +56,7 @@ function splitCsvLines(text: string): string[][] {
   return rows;
 }
 
-export function parseLocationCsv(csvText: string): ParsedCsv {
+export function parseCsv(csvText: string): ParsedCsv {
   const lines = splitCsvLines(csvText);
   const [headerLine, ...dataLines] = lines;
   const headers = (headerLine ?? []).map((header) => header.trim());

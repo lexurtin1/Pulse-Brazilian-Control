@@ -1,0 +1,117 @@
+.command-header {
+  flex: none;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--space-6);
+  background: var(--color-bg);
+  border-bottom: 1px solid var(--color-divider);
+}
+
+.command-header__left,
+.command-header__right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.command-header__divider {
+  width: 1px;
+  height: 22px;
+  background: var(--color-border);
+}
+
+.command-header__title {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.command-header__live-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 12px;
+  border-radius: var(--radius-full);
+  border: 1px solid rgba(15, 184, 156, 0.4);
+  color: var(--color-brand-teal);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+}
+
+.live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-full);
+  background: var(--color-brand-teal);
+  box-shadow: 0 0 8px rgba(15, 184, 156, 0.8);
+  animation: command-header-breathe 3s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .live-dot {
+    animation: none;
+  }
+}
+
+@keyframes command-header-breathe {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.command-header__clock {
+  font-family: ui-monospace, "SFMono-Regular", monospace;
+  font-size: 11px;
+  color: var(--color-text-faint);
+  padding: 4px 10px;
+  border: 1.5px dashed rgba(15, 184, 156, 0.35);
+  border-radius: var(--radius-sm);
+  background: var(--color-primary-highlight);
+  white-space: nowrap;
+}
+
+.command-header__user {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.command-header__theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 14px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-2);
+  color: var(--color-text);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  cursor: pointer;
+  transition: background-color var(--transition-interactive);
+}
+
+.command-header__theme-toggle:hover {
+  background: var(--color-surface-offset);
+}
+
+.command-header__theme-toggle:active {
+  transform: translateY(1px);
+}
+
+.command-header__theme-toggle:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}

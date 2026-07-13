@@ -16,3 +16,11 @@
   font-weight: 600;
   letter-spacing: 0.28em;
 }
+
+.pulse-logo[data-inline] {
+  position: static;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-2);
+  pointer-events: auto;
+}

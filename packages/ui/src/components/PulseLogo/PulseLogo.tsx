@@ -1,8 +1,13 @@
 import "./PulseLogo.css";
 
-export function PulseLogo() {
+interface PulseLogoProps {
+  /** Renders flowing inline in a header instead of as a fixed floating badge. */
+  inline?: boolean;
+}
+
+export function PulseLogo({ inline = false }: PulseLogoProps) {
   return (
-    <div className="pulse-logo" aria-label="Pulse Brazil">
+    <div className="pulse-logo" data-inline={inline || undefined} aria-label="Pulse Brazil">
       <svg
         width="28"
         height="28"

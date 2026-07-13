@@ -62,6 +62,15 @@
   gap: var(--space-2);
 }
 
+.perplexity-sweep-panel--inline {
+  position: static;
+  width: auto;
+  padding: 0;
+  border: none;
+  background: none;
+  box-shadow: none;
+}
+
 .perplexity-sweep-panel__limit {
   display: flex;
   align-items: center;

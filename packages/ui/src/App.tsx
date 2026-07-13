@@ -1,17 +1,37 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import type { AccountMapPinDto, AccountSummaryDto, LocationRecordMapPinDto, SignalDto } from "@pulse-brazil/application";
-import { SignalFeed } from "./components/SignalFeed/SignalFeed";
+import type {
+  AccountMapPinDto,
+  AccountSummaryDto,
+  ActiveAccountsSummaryDto,
+  LocationRecordMapPinDto,
+  PipelineSummaryDto,
+  SignalDto,
+  TopOpenDealsResultDto,
+} from "@pulse-brazil/application";
 import { BrazilMap } from "./components/BrazilMap/BrazilMap";
 import { MapLegend } from "./components/MapLegend/MapLegend";
-import { PulseLogo } from "./components/PulseLogo/PulseLogo";
-import { UploadFAB } from "./components/UploadFAB/UploadFAB";
 import { CreateAccountFAB } from "./components/CreateAccountFAB/CreateAccountFAB";
-import { PerplexitySweepButton } from "./components/PerplexitySweepButton/PerplexitySweepButton";
 import { AccountDossier } from "./components/AccountDossier/AccountDossier";
 import { LocationPinDetail } from "./components/LocationPinDetail/LocationPinDetail";
 import { EntryAnimation } from "./components/EntryAnimation/EntryAnimation";
-import { fetchAccountMapPins, fetchAccounts, fetchLocationMapPins, fetchRecentSignals } from "./api/client";
+import { CommandHeader } from "./components/CommandCentre/CommandHeader";
+import { KpiCard } from "./components/CommandCentre/KpiCard";
+import { FeedControlsCard } from "./components/CommandCentre/FeedControlsCard";
+import { TopOpenDealsCard } from "./components/CommandCentre/TopOpenDealsCard";
+import { CityActivityIndexCard } from "./components/CommandCentre/CityActivityIndexCard";
+import { LiveFeedCard } from "./components/CommandCentre/LiveFeedCard";
+import {
+  fetchAccountMapPins,
+  fetchAccounts,
+  fetchActiveAccountsSummary,
+  fetchLocationMapPins,
+  fetchPipelineSummary,
+  fetchRecentSignals,
+  fetchTopOpenDeals,
+} from "./api/client";
+import { formatCount, formatCountDelta, formatCurrency, formatCurrencyDelta, formatShortDate } from "./utils/formatNumbers";
+import "./components/CommandCentre/CommandCentre.css";
 import "./App.css";
 
 type LoadState = "loading" | "error" | "ready";
@@ -36,6 +56,9 @@ export function App() {
   const [mapPins, setMapPins] = useState<AccountMapPinDto[]>([]);
   const [locationPins, setLocationPins] = useState<LocationRecordMapPinDto[]>([]);
   const [signals, setSignals] = useState<SignalDto[]>([]);
+  const [pipelineSummary, setPipelineSummary] = useState<PipelineSummaryDto | null>(null);
+  const [activeAccountsSummary, setActiveAccountsSummary] = useState<ActiveAccountsSummaryDto | null>(null);
+  const [topOpenDeals, setTopOpenDeals] = useState<TopOpenDealsResultDto | null>(null);
   const [status, setStatus] = useState<LoadState>("loading");
   const [introDone, setIntroDone] = useState(() => sessionStorage.getItem(INTRO_SESSION_KEY) === "1");
   const mapWrapRef = useRef<HTMLDivElement>(null);
@@ -43,15 +66,36 @@ export function App() {
   useEffect(() => {
     let cancelled = false;
 
-    Promise.all([fetchAccounts(), fetchAccountMapPins(), fetchRecentSignals(), fetchLocationMapPins()])
-      .then(([accountsResult, mapPinsResult, signalsResult, locationPinsResult]) => {
-        if (cancelled) return;
-        setAccounts(accountsResult);
-        setMapPins(mapPinsResult);
-        setSignals(signalsResult);
-        setLocationPins(locationPinsResult);
-        setStatus("ready");
-      })
+    Promise.all([
+      fetchAccounts(),
+      fetchAccountMapPins(),
+      fetchRecentSignals(),
+      fetchLocationMapPins(),
+      fetchPipelineSummary(),
+      fetchTopOpenDeals(),
+      fetchActiveAccountsSummary(),
+    ])
+      .then(
+        ([
+          accountsResult,
+          mapPinsResult,
+          signalsResult,
+          locationPinsResult,
+          pipelineSummaryResult,
+          topOpenDealsResult,
+          activeAccountsSummaryResult,
+        ]) => {
+          if (cancelled) return;
+          setAccounts(accountsResult);
+          setMapPins(mapPinsResult);
+          setSignals(signalsResult);
+          setLocationPins(locationPinsResult);
+          setPipelineSummary(pipelineSummaryResult);
+          setTopOpenDeals(topOpenDealsResult);
+          setActiveAccountsSummary(activeAccountsSummaryResult);
+          setStatus("ready");
+        },
+      )
       .catch((error) => {
         console.error("Failed to load Pulse Brazil data", error);
         if (!cancelled) setStatus("error");
@@ -78,13 +122,35 @@ export function App() {
       .catch((error) => console.error("Failed to refresh signals", error));
   }, []);
 
-  // One callback for both upload paths — refetching signals after a
-  // location-only CSV import is cheap and harmless, and keeps UploadFAB from
-  // needing to know which backend path it took.
+  // After a Pipeline CSV import, re-fetch the summary + top deals so the KPI
+  // strip and rail panel show up without a full page reload.
+  const refreshPipeline = useCallback(() => {
+    fetchPipelineSummary()
+      .then(setPipelineSummary)
+      .catch((error) => console.error("Failed to refresh pipeline summary", error));
+    fetchTopOpenDeals()
+      .then(setTopOpenDeals)
+      .catch((error) => console.error("Failed to refresh top open deals", error));
+  }, []);
+
+  // After a Location CSV import, re-fetch the Active Accounts summary so
+  // its count/delta reflect the new AccountCountSnapshot without a full
+  // page reload.
+  const refreshActiveAccountsSummary = useCallback(() => {
+    fetchActiveAccountsSummary()
+      .then(setActiveAccountsSummary)
+      .catch((error) => console.error("Failed to refresh active accounts summary", error));
+  }, []);
+
+  // One callback for all upload paths — refetching data that a given upload
+  // didn't touch is cheap and harmless, and keeps UploadFAB from needing to
+  // know which backend path it took.
   const refreshAfterUpload = useCallback(() => {
     refreshLocationPins();
     refreshSignals();
-  }, [refreshLocationPins, refreshSignals]);
+    refreshPipeline();
+    refreshActiveAccountsSummary();
+  }, [refreshLocationPins, refreshSignals, refreshPipeline, refreshActiveAccountsSummary]);
 
   // After creating an account, re-fetch the account list so it's available
   // wherever accounts are listed (e.g. UploadFAB's "link to account" select).
@@ -111,58 +177,98 @@ export function App() {
   }
 
   if (status === "loading") {
-    return <div className="app-shell app-shell--status">Loading Pulse Brazil…</div>;
+    return <div className="command-centre command-centre--status">Loading Pulse Brazil…</div>;
   }
 
   if (status === "error") {
     return (
-      <div className="app-shell app-shell--status">Couldn't load data. Check the API is running and try again.</div>
+      <div className="command-centre command-centre--status">
+        Couldn't load data. Check the API is running and try again.
+      </div>
     );
   }
 
   return (
     <>
       <motion.div
-        className="app-shell"
+        className="command-centre"
         variants={shellVariants}
         initial={showIntro ? "hidden" : false}
         animate={showIntro ? "hidden" : "visible"}
       >
-        <motion.div className="app-shell__left" variants={shellItemVariants}>
-          <SignalFeed
-            signals={signals}
-            accountsById={accountsById}
-            selectedAccountId={selectedAccountId}
-            onSelectAccount={handleSelectAccount}
-          />
-        </motion.div>
-        <div className="app-shell__right">
-          <div className="app-shell__map">
-            <div ref={mapWrapRef} className="app-shell__map-live">
-              <BrazilMap
-                pins={mapPins}
-                locationPins={locationPins}
+        <CommandHeader />
+        <div className="command-centre__body">
+          <motion.div className="kpi-strip" variants={shellItemVariants}>
+            <KpiCard
+              label="ACTIVE ACCOUNTS · BR"
+              value={activeAccountsSummary ? formatCount(activeAccountsSummary.count) : undefined}
+              footnote={
+                activeAccountsSummary
+                  ? activeAccountsSummary.delta
+                    ? `${formatCountDelta(activeAccountsSummary.delta.count)} vs. upload on ${formatShortDate(activeAccountsSummary.delta.previousAsOf)}`
+                    : `as of ${formatShortDate(activeAccountsSummary.asOf)}`
+                  : "Upload a Location CSV to populate this card"
+              }
+            />
+            <KpiCard
+              label="PIPELINE VALUE - UNWEIGHTED"
+              value={pipelineSummary ? formatCurrency(pipelineSummary.unweightedValue) : undefined}
+              footnote={
+                pipelineSummary
+                  ? pipelineSummary.unweightedDelta
+                    ? `${formatCurrencyDelta(pipelineSummary.unweightedDelta.amount)} vs. upload on ${formatShortDate(pipelineSummary.unweightedDelta.previousAsOf)}`
+                    : `${pipelineSummary.openDealCount} open deals as of ${formatShortDate(pipelineSummary.asOf)}`
+                  : "Upload a Salesforce pipeline export to populate this card"
+              }
+            />
+            <KpiCard
+              label="PIPELINE VALUE - WEIGHTED"
+              value={pipelineSummary ? formatCurrency(pipelineSummary.weightedValue) : undefined}
+              footnote={
+                pipelineSummary
+                  ? pipelineSummary.weightedDelta
+                    ? `${formatCurrencyDelta(pipelineSummary.weightedDelta.amount)} vs. upload on ${formatShortDate(pipelineSummary.weightedDelta.previousAsOf)}`
+                    : `probability-weighted, as of ${formatShortDate(pipelineSummary.asOf)}`
+                  : "Upload a Salesforce pipeline export to populate this card"
+              }
+            />
+            <FeedControlsCard accountsForLinking={accounts} onImported={refreshAfterUpload} onSweepComplete={refreshSignals} />
+          </motion.div>
+
+          <div className="main-grid">
+            <motion.div className="map-panel" variants={shellItemVariants}>
+              <div className="map-panel__header">
+                <span className="map-panel__title">OPERATIONAL MAP · BRAZIL</span>
+              </div>
+              <div className="map-panel__canvas">
+                <div ref={mapWrapRef} className="app-shell__map-live">
+                  <BrazilMap
+                    pins={mapPins}
+                    locationPins={locationPins}
+                    selectedAccountId={selectedAccountId}
+                    onSelectAccount={handleSelectAccount}
+                    onSelectLocationPin={setSelectedLocationPin}
+                  />
+                </div>
+                <MapLegend pins={mapPins} />
+              </div>
+            </motion.div>
+
+            <motion.div className="right-rail" variants={shellItemVariants}>
+              <TopOpenDealsCard topOpenDeals={topOpenDeals} />
+              <CityActivityIndexCard />
+              <LiveFeedCard
+                signals={signals}
+                accountsById={accountsById}
                 selectedAccountId={selectedAccountId}
                 onSelectAccount={handleSelectAccount}
-                onSelectLocationPin={setSelectedLocationPin}
               />
-            </div>
-            <motion.div variants={shellItemVariants}>
-              <MapLegend pins={mapPins} />
             </motion.div>
           </div>
         </div>
-        <motion.div variants={shellItemVariants}>
-          <PulseLogo />
-        </motion.div>
-        <motion.div variants={shellItemVariants}>
-          <UploadFAB accountsForLinking={accounts} onImported={refreshAfterUpload} />
-        </motion.div>
+
         <motion.div variants={shellItemVariants}>
           <CreateAccountFAB onCreated={refreshAccounts} />
-        </motion.div>
-        <motion.div variants={shellItemVariants}>
-          <PerplexitySweepButton onComplete={refreshSignals} />
         </motion.div>
       </motion.div>
       {showIntro && <EntryAnimation mapRef={mapWrapRef} onComplete={() => setIntroDone(true)} />}

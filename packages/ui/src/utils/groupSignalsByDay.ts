@@ -18,7 +18,7 @@ function daysBetween(now: Date, other: Date): number {
 /**
  * Buckets signals into Today / Yesterday / Earlier this week / Earlier,
  * preserving the caller's ordering within each bucket. Assumes `signals` is
- * already sorted (SignalFeed sorts desc by dateObserved before calling
+ * already sorted (LiveFeedCard sorts desc by dateObserved before calling
  * this). `now` should be computed once by the caller (e.g. via
  * `useState(() => new Date())`), not freshly on every render, so grouping
  * stays stable across re-renders.

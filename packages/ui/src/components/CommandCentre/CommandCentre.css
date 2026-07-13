@@ -1,0 +1,412 @@
+.command-centre {
+  display: flex;
+  flex-direction: column;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+.command-centre__body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  padding: var(--space-6) var(--space-8);
+}
+
+.kpi-strip {
+  flex: none;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-6);
+}
+
+.kpi-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.kpi-card[data-variant="risk"] {
+  border-color: rgba(254, 221, 0, 0.35);
+}
+
+.kpi-card__label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: var(--color-text-muted);
+}
+
+.kpi-card[data-variant="risk"] .kpi-card__label {
+  color: #b58b00;
+}
+
+.kpi-card__value {
+  display: inline-block;
+  align-self: flex-start;
+  min-width: 110px;
+  padding: 6px 12px;
+  border: 1.5px dashed rgba(15, 184, 156, 0.35);
+  border-radius: var(--radius-sm);
+  background: var(--color-primary-highlight);
+  color: var(--color-text-faint);
+  font-family: ui-monospace, "SFMono-Regular", monospace;
+  font-size: 15px;
+}
+
+.kpi-card__value[data-empty] {
+  color: var(--color-text-faint);
+}
+
+.kpi-card__footnote {
+  font-family: ui-monospace, "SFMono-Regular", monospace;
+  font-size: 10px;
+  color: var(--color-text-faint);
+}
+
+.main-grid {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 1fr 420px;
+  gap: var(--space-6);
+  align-items: stretch;
+}
+
+.map-panel {
+  position: relative;
+  background: var(--color-surface-offset);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  overflow: hidden;
+  min-height: 0;
+}
+
+.map-panel__header {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.map-panel__title {
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  color: var(--color-text);
+}
+
+.map-panel__canvas {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.right-rail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  min-height: 0;
+}
+
+.rail-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.rail-card--live-feed {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.rail-card__label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: var(--color-text-muted);
+}
+
+.rail-card__label--accent {
+  color: var(--color-brand-teal);
+}
+
+.rail-card__live-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rail-card__empty {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-faint);
+}
+
+.live-feed__groups {
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+  margin: 0 calc(var(--space-6) * -1);
+}
+
+.live-feed__group {
+  padding-top: var(--space-2);
+}
+
+.live-feed__day-heading {
+  margin: 0;
+  padding: var(--space-2) var(--space-6);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-faint);
+}
+
+.live-feed__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.live-feed__item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  border-top: 1px solid var(--color-divider);
+  padding: var(--space-3) var(--space-6);
+  cursor: pointer;
+  transition: background-color var(--transition-interactive);
+}
+
+.live-feed__group:last-child .live-feed__list li:last-child .live-feed__item {
+  border-bottom: 1px solid var(--color-divider);
+}
+
+.live-feed__item:hover {
+  background: var(--color-surface-2);
+}
+
+.live-feed__item:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
+}
+
+.live-feed__item[data-selected] {
+  background: var(--color-primary-highlight);
+}
+
+.live-feed__item:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.live-feed__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-1);
+}
+
+.live-feed__timestamp {
+  font-size: var(--text-xs);
+  color: var(--color-text-faint);
+  white-space: nowrap;
+}
+
+.live-feed__account {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.live-feed__type-chip {
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+.live-feed__type-chip[data-signal-type="RegulatoryChange"] {
+  color: var(--signal-regulatorychange-text);
+  background: var(--signal-regulatorychange-bg);
+}
+
+.live-feed__type-chip[data-signal-type="CompetitiveIntelligence"] {
+  color: var(--signal-competitiveintelligence-text);
+  background: var(--signal-competitiveintelligence-bg);
+}
+
+.live-feed__type-chip[data-signal-type="MarketStructure"] {
+  color: var(--signal-marketstructure-text);
+  background: var(--signal-marketstructure-bg);
+}
+
+.live-feed__type-chip[data-signal-type="CrossBorder"] {
+  color: var(--signal-crossborder-text);
+  background: var(--signal-crossborder-bg);
+}
+
+.live-feed__type-chip[data-signal-type="Tokenisation"] {
+  color: var(--signal-tokenisation-text);
+  background: var(--signal-tokenisation-bg);
+}
+
+.live-feed__type-chip[data-signal-type="ETF"] {
+  color: var(--signal-etf-text);
+  background: var(--signal-etf-bg);
+}
+
+.live-feed__type-chip[data-signal-type="OrderRouting"] {
+  color: var(--signal-orderrouting-text);
+  background: var(--signal-orderrouting-bg);
+}
+
+.live-feed__type-chip[data-signal-type="AccountSpecific"] {
+  color: var(--signal-accountspecific-text);
+  background: var(--signal-accountspecific-bg);
+}
+
+.live-feed__type-chip[data-signal-type="MarketResearch"] {
+  color: var(--signal-marketresearch-text);
+  background: var(--signal-marketresearch-bg);
+}
+
+.live-feed__type-chip[data-signal-type="Other"] {
+  color: var(--signal-other-text);
+  background: var(--signal-other-bg);
+}
+
+/* Source: neutral outlined pill, deliberately undyed — this is provenance
+   metadata (where did we learn this), not a taxonomy like signal type, so it
+   shouldn't compete visually with the type chip's color coding. */
+.live-feed__source-chip {
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--color-border);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.live-feed__summary {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  line-height: 1.45;
+}
+
+.top-open-deals__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.top-open-deals__row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.top-open-deals__row:last-child {
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.top-open-deals__row-main {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.top-open-deals__account {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.top-open-deals__amount {
+  font-family: ui-monospace, "SFMono-Regular", monospace;
+  font-size: 12px;
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+.top-open-deals__row-meta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.top-open-deals__opportunity {
+  font-size: 11px;
+  color: var(--color-text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.top-open-deals__stage {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.city-index-row {
+  display: grid;
+  grid-template-columns: 120px 1fr 40px;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.city-index-row__name {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--color-text);
+}
+
+.city-index-row__bar {
+  height: 8px;
+  border-radius: var(--radius-full);
+  background: var(--color-border);
+}
+
+.city-index-row__value {
+  font-family: ui-monospace, "SFMono-Regular", monospace;
+  font-size: 11px;
+  color: var(--color-text-faint);
+  text-align: right;
+}

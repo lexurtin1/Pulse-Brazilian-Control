@@ -1,8 +1,14 @@
 import { useRef, useState } from "react";
 import type { DragEvent, FormEvent } from "react";
 import { Plus, X, UploadCloud } from "lucide-react";
-import type { AccountSummaryDto, ImportLocationCsvResultDto, ProcessDocumentUploadResultDto } from "@pulse-brazil/application";
-import { importLocationCsv, ingestDocument } from "../../api/client";
+import type {
+  AccountSummaryDto,
+  ImportLocationCsvResultDto,
+  ImportPipelineCsvResultDto,
+  ProcessDocumentUploadResultDto,
+} from "@pulse-brazil/application";
+import { looksLikePipelineCsv, parseCsv } from "@pulse-brazil/application";
+import { importLocationCsv, importPipelineCsv, ingestDocument } from "../../api/client";
 import { useDialogA11y } from "../../hooks/useDialogA11y";
 import { formatEnumLabel } from "../../utils/formatEnumLabel";
 import "./UploadFAB.css";
@@ -11,6 +17,8 @@ interface UploadFABProps {
   accountsForLinking: AccountSummaryDto[];
   /** Called after a CSV import or document ingest completes successfully, so the caller can refresh map pins / the signal feed. */
   onImported?: () => void;
+  /** "fab" (default): floating circular trigger. "inline": flows as a normal button, for the Command Centre's Feed Controls card. */
+  variant?: "fab" | "inline";
 }
 
 const SOURCE_TYPES = ["DocumentUpload", "EmailForward", "ManualEntry", "WebResearch", "Other"];
@@ -19,6 +27,7 @@ const SOURCE_TYPE_LEGEND_ID = "upload-sheet-source-type-legend";
 
 type SubmitResult =
   | { kind: "csv"; data: ImportLocationCsvResultDto }
+  | { kind: "pipeline"; data: ImportPipelineCsvResultDto }
   | { kind: "document"; data: ProcessDocumentUploadResultDto };
 
 /** Strips the "data:<mime>;base64," prefix FileReader.readAsDataURL adds. */
@@ -34,7 +43,25 @@ function readFileAsBase64(file: File): Promise<string> {
   });
 }
 
-export function UploadFAB({ accountsForLinking, onImported }: UploadFABProps) {
+/**
+ * Real Pipeline CSV exports from Salesforce are Windows-1252/Latin-1, not
+ * UTF-8 — decoding as UTF-8 corrupts accented account names (e.g. "Itaú").
+ * Header names are plain ASCII either way, so a first UTF-8 decode is safe
+ * for the routing sniff; only Pipeline CSVs get re-decoded as windows-1252
+ * for the text actually sent to the importer. Location CSVs are unaffected,
+ * decoded as UTF-8 as before.
+ */
+async function readCsvFile(file: File): Promise<{ kind: "location" | "pipeline"; csvText: string }> {
+  const buffer = await file.arrayBuffer();
+  const utf8Text = new TextDecoder("utf-8").decode(buffer);
+  const { headers } = parseCsv(utf8Text);
+  if (looksLikePipelineCsv(headers)) {
+    return { kind: "pipeline", csvText: new TextDecoder("windows-1252").decode(buffer) };
+  }
+  return { kind: "location", csvText: utf8Text };
+}
+
+export function UploadFAB({ accountsForLinking, onImported, variant = "fab" }: UploadFABProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isDragActive, setIsDragActive] = useState(false);
   const [file, setFile] = useState<File | null>(null);
@@ -91,9 +118,14 @@ export function UploadFAB({ accountsForLinking, onImported }: UploadFABProps) {
 
     try {
       if (isCsv) {
-        const csvText = await file.text();
-        const data = await importLocationCsv({ csvText, originalFilename: file.name });
-        setSubmitResult({ kind: "csv", data });
+        const { kind, csvText } = await readCsvFile(file);
+        if (kind === "pipeline") {
+          const data = await importPipelineCsv({ csvText, originalFilename: file.name });
+          setSubmitResult({ kind: "pipeline", data });
+        } else {
+          const data = await importLocationCsv({ csvText, originalFilename: file.name });
+          setSubmitResult({ kind: "csv", data });
+        }
       } else if (isPdf) {
         const content = await readFileAsBase64(file);
         const data = await ingestDocument({ content, mimeType: "application/pdf", connectorSource, originalFilename: file.name });
@@ -114,9 +146,16 @@ export function UploadFAB({ accountsForLinking, onImported }: UploadFABProps) {
 
   return (
     <>
-      <button type="button" className="upload-fab" aria-label="Upload document" onClick={() => setIsOpen(true)}>
-        <Plus size={22} strokeWidth={2.25} />
-      </button>
+      {variant === "fab" ? (
+        <button type="button" className="upload-fab" aria-label="Upload document" onClick={() => setIsOpen(true)}>
+          <Plus size={22} strokeWidth={2.25} />
+        </button>
+      ) : (
+        <button type="button" className="feed-action-button" onClick={() => setIsOpen(true)}>
+          <UploadCloud size={16} strokeWidth={2} />
+          <span>Upload document</span>
+        </button>
+      )}
 
       {isOpen && (
         <div
@@ -183,8 +222,8 @@ export function UploadFAB({ accountsForLinking, onImported }: UploadFABProps) {
 
               {file?.name.toLowerCase().endsWith(".csv") && (
                 <p className="upload-sheet__hint">
-                  Detected as a Brazil location CSV — imported directly. Source type and account link below aren't used for
-                  this format; each row declares its own kind and (optionally) its own linked account.
+                  CSV files are imported directly — whether this is Brazil location data or Salesforce pipeline data is
+                  detected automatically from its columns. Source type and account link below aren't used for this format.
                 </p>
               )}
               {file && !file.name.toLowerCase().endsWith(".csv") && (
@@ -247,6 +286,33 @@ export function UploadFAB({ accountsForLinking, onImported }: UploadFABProps) {
                   </p>
                   {submitResult.data.reviewRequiredCount > 0 && (
                     <p>{submitResult.data.reviewRequiredCount} record(s) flagged for review.</p>
+                  )}
+                  {submitResult.data.rejectedRows.length > 0 && (
+                    <details>
+                      <summary>
+                        {submitResult.data.rejectedRows.length} row{submitResult.data.rejectedRows.length === 1 ? "" : "s"}{" "}
+                        rejected
+                      </summary>
+                      <ul className="upload-sheet__result-errors">
+                        {submitResult.data.rejectedRows.map((row) => (
+                          <li key={row.rowNumber}>
+                            Row {row.rowNumber}: {row.errors.join("; ")}
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
+                  )}
+                </div>
+              )}
+
+              {submitResult?.kind === "pipeline" && (
+                <div className="upload-sheet__result" role="status">
+                  <p>
+                    <strong>{submitResult.data.acceptedRows}</strong> of {submitResult.data.totalRows} deal
+                    {submitResult.data.totalRows === 1 ? "" : "s"} imported.
+                  </p>
+                  {submitResult.data.reviewRequiredCount > 0 && (
+                    <p>{submitResult.data.reviewRequiredCount} deal(s) flagged for review.</p>
                   )}
                   {submitResult.data.rejectedRows.length > 0 && (
                     <details>

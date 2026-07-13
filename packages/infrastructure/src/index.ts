@@ -15,6 +15,8 @@ export * from "./adapters/PostgresInsightRepository.js";
 export * from "./adapters/PostgresContextBundleRepository.js";
 export * from "./adapters/PostgresTemperatureAssessmentRepository.js";
 export * from "./adapters/PostgresLocationRecordRepository.js";
+export * from "./adapters/PostgresDealRepository.js";
+export * from "./adapters/PostgresAccountCountSnapshotRepository.js";
 export * from "./adapters/PerplexityMarketResearchAdapter.js";
 
 export * from "./db/pool.js";

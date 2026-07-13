@@ -4,6 +4,7 @@ import { GeographicScope } from "../shared/GeographicScope.js";
 import type { AccountId, SignalId, ThemeId } from "../shared/identifiers.js";
 import { AccountStatus } from "./AccountStatus.js";
 import { AccountType } from "./AccountType.js";
+import { ClientType } from "./ClientType.js";
 import { OfficeLocation } from "./OfficeLocation.js";
 import { TemperatureAssessment } from "./TemperatureAssessment.js";
 
@@ -23,6 +24,15 @@ interface AccountProps {
   linkedSignalIds: readonly SignalId[];
   latestTemperature?: TemperatureAssessment;
   externalReferences: readonly ExternalReference[];
+  /**
+   * Real Salesforce account-export metadata — see ClientType's doc comment
+   * for why this is separate from accountType. All optional/defaulted since
+   * most accounts (created by hand, or by other importers) never carry it.
+   */
+  clientTypes: readonly ClientType[];
+  accountOwner?: string;
+  createdCohortYear?: string;
+  openOpportunityCount?: number;
 }
 
 function assertOnePrimaryOffice(offices: readonly OfficeLocation[]): void {
@@ -61,6 +71,10 @@ export class Account {
     linkedSignalIds?: readonly SignalId[];
     latestTemperature?: TemperatureAssessment;
     externalReferences?: readonly ExternalReference[];
+    clientTypes?: readonly ClientType[];
+    accountOwner?: string;
+    createdCohortYear?: string;
+    openOpportunityCount?: number;
   }): Account {
     if (!params.name.trim()) {
       throw new InvariantViolationError("Account", "name must not be empty");
@@ -85,6 +99,10 @@ export class Account {
       linkedSignalIds: params.linkedSignalIds ?? [],
       latestTemperature: params.latestTemperature,
       externalReferences,
+      clientTypes: params.clientTypes ?? [],
+      accountOwner: params.accountOwner?.trim() || undefined,
+      createdCohortYear: params.createdCohortYear?.trim() || undefined,
+      openOpportunityCount: params.openOpportunityCount,
     });
   }
 
@@ -121,6 +139,18 @@ export class Account {
   get externalReferences(): readonly ExternalReference[] {
     return this.props.externalReferences;
   }
+  get clientTypes(): readonly ClientType[] {
+    return this.props.clientTypes;
+  }
+  get accountOwner(): string | undefined {
+    return this.props.accountOwner;
+  }
+  get createdCohortYear(): string | undefined {
+    return this.props.createdCohortYear;
+  }
+  get openOpportunityCount(): number | undefined {
+    return this.props.openOpportunityCount;
+  }
 
   withStatus(status: AccountStatus): Account {
     return new Account({ ...this.props, status });
@@ -134,6 +164,22 @@ export class Account {
   withExternalReferences(externalReferences: readonly ExternalReference[]): Account {
     assertUniqueExternalSystems(externalReferences);
     return new Account({ ...this.props, externalReferences });
+  }
+
+  /** All four fields come from the same Salesforce account-export source — one update, not four separate withers. */
+  withSalesforceProfile(profile: {
+    clientTypes: readonly ClientType[];
+    accountOwner?: string;
+    createdCohortYear?: string;
+    openOpportunityCount?: number;
+  }): Account {
+    return new Account({
+      ...this.props,
+      clientTypes: profile.clientTypes,
+      accountOwner: profile.accountOwner?.trim() || undefined,
+      createdCohortYear: profile.createdCohortYear?.trim() || undefined,
+      openOpportunityCount: profile.openOpportunityCount,
+    });
   }
 
   /** Records a new temperature read as the account's current snapshot. The full history is owned outside this aggregate. */

@@ -1,7 +1,7 @@
 .create-account-fab {
   position: fixed;
   bottom: var(--space-8);
-  right: calc(var(--space-8) + 56px + var(--space-3));
+  right: var(--space-8);
   z-index: 30;
   width: 56px;
   height: 56px;

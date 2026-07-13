@@ -18,6 +18,8 @@ export * from "./ports/IGeocoder.js";
 export * from "./ports/IIdGenerator.js";
 export * from "./ports/IMarketResearchService.js";
 export * from "./ports/ILocationRecordRepository.js";
+export * from "./ports/IDealRepository.js";
+export * from "./ports/IAccountCountSnapshotRepository.js";
 
 export * from "./dto/account/AccountSummaryDto.js";
 export * from "./dto/account/AccountDetailDto.js";
@@ -32,9 +34,17 @@ export * from "./dto/RunMarketResearchSweepResult.js";
 export * from "./dto/location/LocationRecordDto.js";
 export * from "./dto/location/LocationRecordMapPinDto.js";
 export * from "./dto/location/ImportLocationCsvResultDto.js";
+export * from "./dto/pipeline/DealDto.js";
+export * from "./dto/pipeline/ImportPipelineCsvResultDto.js";
+export * from "./dto/pipeline/PipelineSummaryDto.js";
+export * from "./dto/pipeline/TopOpenDealsResultDto.js";
+export * from "./dto/account/ActiveAccountsSummaryDto.js";
+export * from "./dto/account/ReconcileSalesforceAccountsResultDto.js";
 
-export * from "./validation/parseLocationCsv.js";
+export * from "./validation/parseCsv.js";
 export * from "./validation/LocationCsvRowValidator.js";
+export * from "./validation/PipelineCsvRowValidator.js";
+export * from "./validation/SalesforceAccountCsvRowValidator.js";
 
 export * from "./use-cases/account/GetAccountDetail.js";
 export * from "./use-cases/account/ListAccounts.js";
@@ -54,3 +64,8 @@ export * from "./use-cases/RunMarketResearchSweep.js";
 export * from "./use-cases/location/ImportLocationCsv.js";
 export * from "./use-cases/location/ListLocationRecordsForMap.js";
 export * from "./use-cases/location/CreateAccountFromLocationRecord.js";
+export * from "./use-cases/pipeline/ImportPipelineCsv.js";
+export * from "./use-cases/pipeline/GetPipelineSummary.js";
+export * from "./use-cases/pipeline/GetTopOpenDeals.js";
+export * from "./use-cases/account/GetActiveAccountsSummary.js";
+export * from "./use-cases/account/ReconcileSalesforceAccounts.js";

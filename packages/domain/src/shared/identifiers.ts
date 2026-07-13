@@ -20,6 +20,8 @@ export type InsightId = Brand<string, "InsightId">;
 export type ContextBundleId = Brand<string, "ContextBundleId">;
 export type PromptProfileId = Brand<string, "PromptProfileId">;
 export type LocationRecordId = Brand<string, "LocationRecordId">;
+export type DealId = Brand<string, "DealId">;
+export type AccountCountSnapshotId = Brand<string, "AccountCountSnapshotId">;
 
 export function asAccountId(value: string): AccountId {
   return value as AccountId;
@@ -53,4 +55,10 @@ export function asPromptProfileId(value: string): PromptProfileId {
 }
 export function asLocationRecordId(value: string): LocationRecordId {
   return value as LocationRecordId;
+}
+export function asDealId(value: string): DealId {
+  return value as DealId;
+}
+export function asAccountCountSnapshotId(value: string): AccountCountSnapshotId {
+  return value as AccountCountSnapshotId;
 }

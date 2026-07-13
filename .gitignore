@@ -6,3 +6,14 @@ dist/
 .env.local
 .vercel/
 .next/
+.vercel
+.env*
+
+# Real business data lands here for manual ingestion — never committed
+# (see the repo-hygiene precedent: prior real Salesforce exports were
+# deliberately removed from history).
+Everything Brazil/
+
+# Design reference assets, not repo artifacts.
+Pulse Brazil New Frontend Sandbox.zip
+Brazil-New-Frontend.png
