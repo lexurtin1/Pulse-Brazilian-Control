@@ -49,7 +49,7 @@
      sit anywhere next to each other) and >=3:1 mark contrast against this
      surface. Colour is a mark beside plain-ink text, never colored text
      itself — so these aren't paired with tinted -bg chip backgrounds the
-     way --signal-*/--color-temp-* are. Unclassified accounts (no Salesforce
+     way --signal-* and --color-temp-* are. Unclassified accounts (no Salesforce
      ClientType on file) use --color-text-faint, not an 8th hue — "no data"
      isn't a category. */
   --color-client-distributor: #0095c3;
