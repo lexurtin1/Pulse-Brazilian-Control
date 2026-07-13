@@ -76,6 +76,15 @@ export function CesiumGlobe({ pins, selectedAccountId, onSelectAccount }: Cesium
       duration: FLY_IN_DURATION_SECONDS,
     });
 
+    // Explicit rather than relying on Cesium's defaults — belt-and-suspenders
+    // against any input getting silently disabled by a future config change.
+    const cameraController = viewer.scene.screenSpaceCameraController;
+    cameraController.enableZoom = true;
+    cameraController.enableRotate = true;
+    cameraController.enableTilt = true;
+    cameraController.enableTranslate = true;
+    cameraController.enableInputs = true;
+
     viewer.screenSpaceEventHandler.setInputAction((click: Cesium.ScreenSpaceEventHandler.PositionedEvent) => {
       const picked = viewer.scene.pick(click.position);
       const accountId = picked?.id?.properties?.accountId?.getValue();
