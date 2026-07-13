@@ -244,29 +244,84 @@ Stages:
       `GET /api/pipeline/top-open-deals`. All packages build clean.
 - [x] Frontend Wired — KPI strip now reads "PIPELINE VALUE - UNWEIGHTED" /
       "PIPELINE VALUE - WEIGHTED" (replacing the old Pipeline Value + Open
-      Risk Signals slots) from `GetPipelineSummary`, whole-number BRL
-      formatting (`formatCurrencyBRL`, `packages/ui/src/utils/formatNumbers.ts`).
+      Risk Signals slots) from `GetPipelineSummary`, whole-number formatting
+      (`formatCurrency`, `packages/ui/src/utils/formatNumbers.ts` — display
+      currency switched to GBP symbol/locale 2026-07-13, per request; this
+      is formatting only, not a BRL→GBP conversion, the underlying figures
+      are still the raw Salesforce BRL amounts).
       `TopOpenDealsCard` reads real data from `GetTopOpenDeals`. Empty states
       shown when no snapshot exists yet; no delta badge shown on first
       upload. `tsc --noEmit` passes (only the pre-existing unrelated
       `useDialogA11y.ts` error).
-- [ ] Verified E2E — **dry-run sanity check done (2026-07-13)**: ran the real
+- [x] Verified E2E — **dry-run sanity check (2026-07-13)**: ran the real
       parsing/validation/aggregation logic directly against
       `Everything Brazil/Open Brazil Pipel This FY -2026-07-13.csv` in Node
       (no DB) — all 38 rows parse valid, 33 open deals after excluding
       Lost/Live, unweighted total R$5,972,756, weighted total R$1,550,693,
       top-4-by-Amount list correct, accented names ("Itaú Unibanco",
-      "Vórtx") decode correctly. **Not yet confirmed in an actual browser
-      against a real Postgres** — this sandboxed environment has no
-      Postgres/Docker/browser-automation available (same limitation noted
-      for Phase 0). Needs a manual check: run migrations
-      (`npm run migrate --workspace=@pulse-brazil/infrastructure`, applies
-      `013_create_deals.sql`), start the API + UI, upload the real CSV via
-      the Feed Controls card,
-      confirm both Pipeline Value cards and the Top Open Deals panel show
-      the numbers above, then upload it a second time to confirm the delta
-      badge appears correctly on the second upload.
+      "Vórtx") decode correctly. **Confirmed live in production
+      (2026-07-13)**: deployed to https://pulse-brazilian-control.vercel.app,
+      migrations 013/014/015 applied automatically as part of the Vercel
+      build (`vercel.json`'s `buildCommand` now runs `npm run migrate`
+      first). `GET /api/pipeline/summary` and `/api/pipeline/top-open-deals`
+      confirmed returning `null` (200) — the correct empty state, since no
+      Pipeline CSV has been uploaded to production yet. **Found and fixed a
+      real bug during this check**: the `api/pipeline/[...route].ts`
+      catch-all's segment must be parsed from `req.url`, not
+      `req.query.route` — this builder exposes the catch-all's query key as
+      the literal string `"...route"`, not `"route"`, so every pipeline
+      request was silently 404ing until this was caught by testing the live
+      endpoints, not just dry-running the logic locally. Still outstanding:
+      nobody has actually uploaded the real CSV through the browser yet, so
+      the non-empty-state numbers are unverified end-to-end — do that before
+      calling this fully done.
 - [ ] Done
+
+---
+
+## Data hygiene — Salesforce account-profile reconciliation
+
+Not a dashboard feature/KPI card — a one-time data-quality pass, surfaced
+while working Feature 1, on the 44 accounts backfilled in a prior session.
+
+Two real account exports exist in `Everything Brazil/`: a raw Salesforce
+report (`All Brazil Accounts-2026-07-09-12-31-43.xlsx`) and an enriched
+version of the same 44 accounts with addresses/coordinates added
+(`Brazil_Accounts_Enriched_2026-07-09 (1).csv`). Reconciled field-by-field
+2026-07-13: **zero conflicts** — the enriched CSV is a strict superset of
+the xlsx, so it alone is the source of truth.
+
+Decisions (grilled 2026-07-13):
+- Real "Client Type" values are multi-valued (e.g. "Bank; Distributor; Fund
+  Manager") and don't match the existing single-valued `AccountType` enum's
+  vocabulary. New `ClientType` enum + `Account.clientTypes: readonly
+  ClientType[]`, **additive**, not a replacement — `AccountType` is left
+  untouched since existing stored rows already use its old vocabulary and
+  ~10+ consumers read it as singular.
+- Real "Status" values (Live/Prospect/Disabled/In Discussions) are mapped
+  onto the existing `AccountStatus` enum (Live→Active, Disabled→Dormant,
+  In Discussions→Prospect) rather than replacing it — a judgment call, not
+  a verified 1:1 mapping.
+- `# Open Opportunities` is imported as a static `openOpportunityCount`
+  field despite Feature 1's `Deal` data being able to compute this live —
+  kept for accounts with no `Deal` data (this export is broader than the
+  "This FY" pipeline import scope).
+- New `accountOwner` / `createdCohortYear` fields added (previously no home
+  for this data at all).
+- `ReconcileSalesforceAccounts` (`packages/application/src/use-cases/account/`)
+  matches by exact Account Name, **never fabricates a new Account** for an
+  unmatched name (surfaced instead), and **never overwrites an existing
+  office location** — only fills one in if the account currently has none.
+
+Migration `015_add_account_salesforce_profile.sql` is applied in
+production (confirmed via the Vercel build log, 2026-07-13). The actual
+data write is **not yet done** — this sandboxed environment can't reach
+the production Postgres directly (`ECONNRESET` on the raw connection,
+same as the migration runner originally hit; Vercel's own network can
+reach it fine, which is how the migration got applied). Deferred by
+request rather than routed through another temporary admin endpoint. To
+run it: `DATABASE_URL=... npm run reconcile:accounts --workspace=@pulse-brazil/infrastructure`
+from a network that can reach Neon directly.
 
 ---
 
