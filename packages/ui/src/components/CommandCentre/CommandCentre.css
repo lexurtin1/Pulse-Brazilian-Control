@@ -262,16 +262,19 @@
   overflow-y: auto;
   flex: 1;
   min-height: 0;
-  margin: 0 calc(var(--space-6) * -1);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
 }
 
 .live-feed__group {
-  padding-top: var(--space-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
 }
 
 .live-feed__day-heading {
   margin: 0;
-  padding: var(--space-2) var(--space-6);
   font-size: 10px;
   font-weight: 700;
   text-transform: uppercase;
@@ -280,46 +283,113 @@
 }
 
 .live-feed__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
   list-style: none;
   margin: 0;
   padding: 0;
 }
 
-.live-feed__item {
-  display: block;
+/* Each signal is its own pill-shaped, self-contained card — stacked with a
+   visible gap (see .live-feed__list), not edge-to-edge divided rows. Radius
+   is full/stadium; with two content rows it reads as a heavily-rounded card
+   rather than a literal capsule, which is the intended "pill" look here. */
+.live-feed__pill {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
   width: 100%;
   text-align: left;
-  background: none;
-  border: none;
-  border-top: 1px solid var(--color-divider);
-  padding: var(--space-3) var(--space-6);
-  cursor: pointer;
-  transition: background-color var(--transition-interactive);
-}
-
-.live-feed__group:last-child .live-feed__list li:last-child .live-feed__item {
-  border-bottom: 1px solid var(--color-divider);
-}
-
-.live-feed__item:hover {
   background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  padding: var(--space-2) var(--space-4);
+  cursor: pointer;
+  transition: background-color var(--transition-interactive), border-color var(--transition-interactive);
 }
 
-.live-feed__item:focus-visible {
+.live-feed__pill:hover {
+  background: var(--color-surface-offset);
+}
+
+.live-feed__pill:focus-visible {
   outline: 2px solid var(--color-primary);
-  outline-offset: -2px;
+  outline-offset: 2px;
 }
 
-.live-feed__item[data-selected] {
-  background: var(--color-primary-highlight);
+.live-feed__pill[data-selected] {
+  border-color: var(--color-primary);
 }
 
-.live-feed__meta {
+.live-feed__pill-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.live-feed__pill-heading {
   display: flex;
   align-items: center;
   gap: var(--space-2);
   flex-wrap: wrap;
-  margin-bottom: var(--space-1);
+}
+
+.live-feed__pill-title {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+/* Full-takeover expanded view — replaces the filter row + pill stack
+   entirely while a signal is open (see LiveFeedCard's early return), rather
+   than growing a pill in place, so the whole live-feed box becomes one
+   focused reading surface. */
+.live-feed__takeover {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.live-feed__back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  background: none;
+  border: none;
+  padding: 4px 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.live-feed__back:hover {
+  color: var(--color-text);
+}
+
+.live-feed__back:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.live-feed__takeover-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.live-feed__takeover-title {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: 700;
+  color: var(--color-text);
 }
 
 .live-feed__timestamp {
@@ -415,18 +485,10 @@
   margin-top: 2px;
 }
 
-.live-feed__item[data-expanded] {
-  background: var(--color-surface-2);
-}
-
-.live-feed__detail {
-  margin-top: var(--space-2);
-  padding-top: var(--space-2);
-  border-top: 1px solid var(--color-divider);
-}
-
 .live-feed__detail-text {
   margin: 0;
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-divider);
   font-size: var(--text-sm);
   color: var(--color-text);
   line-height: 1.5;
@@ -436,7 +498,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
-  margin: var(--space-2) 0 0;
+  margin: 0;
   padding: 0;
   list-style: none;
 }
