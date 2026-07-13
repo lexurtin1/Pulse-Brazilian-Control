@@ -108,6 +108,38 @@
   color: var(--color-text);
 }
 
+/* Same shape/behavior as .command-header__theme-toggle — a pill button
+   that flips a two-state label, so the map-view toggle reads as the same
+   control family as the theme toggle rather than a one-off. */
+.map-panel__view-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 14px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-2);
+  color: var(--color-text);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  cursor: pointer;
+  transition: background-color var(--transition-interactive);
+}
+
+.map-panel__view-toggle:hover {
+  background: var(--color-surface-offset);
+}
+
+.map-panel__view-toggle:active {
+  transform: translateY(1px);
+}
+
+.map-panel__view-toggle:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
 .map-panel__canvas {
   position: relative;
   flex: 1;
@@ -160,6 +192,70 @@
   margin: 0;
   font-size: var(--text-sm);
   color: var(--color-text-faint);
+}
+
+.live-feed__filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.live-feed__filter-chip {
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--color-border);
+  background: none;
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color var(--transition-interactive), color var(--transition-interactive), border-color var(--transition-interactive);
+}
+
+.live-feed__filter-chip:hover {
+  background: var(--color-surface-2);
+}
+
+.live-feed__filter-chip[data-active] {
+  border-color: transparent;
+  color: var(--color-surface);
+  background: var(--color-text);
+}
+
+.live-feed__filter-chip[data-signal-type="CompetitiveIntelligence"][data-active] {
+  color: var(--signal-competitiveintelligence-text);
+  background: var(--signal-competitiveintelligence-bg);
+  border-color: var(--signal-competitiveintelligence-text);
+}
+
+.live-feed__filter-chip[data-signal-type="RegulatoryChange"][data-active] {
+  color: var(--signal-regulatorychange-text);
+  background: var(--signal-regulatorychange-bg);
+  border-color: var(--signal-regulatorychange-text);
+}
+
+.live-feed__filter-chip[data-signal-type="CrossBorder"][data-active] {
+  color: var(--signal-crossborder-text);
+  background: var(--signal-crossborder-bg);
+  border-color: var(--signal-crossborder-text);
+}
+
+.live-feed__filter-chip[data-signal-type="Tokenisation"][data-active] {
+  color: var(--signal-tokenisation-text);
+  background: var(--signal-tokenisation-bg);
+  border-color: var(--signal-tokenisation-text);
+}
+
+.live-feed__filter-chip[data-signal-type="ETF"][data-active] {
+  color: var(--signal-etf-text);
+  background: var(--signal-etf-bg);
+  border-color: var(--signal-etf-text);
+}
+
+.live-feed__filter-chip[data-signal-type="MarketStructure"][data-active] {
+  color: var(--signal-marketstructure-text);
+  background: var(--signal-marketstructure-bg);
+  border-color: var(--signal-marketstructure-text);
 }
 
 .live-feed__groups {
@@ -216,11 +312,6 @@
 
 .live-feed__item[data-selected] {
   background: var(--color-primary-highlight);
-}
-
-.live-feed__item:disabled {
-  cursor: default;
-  opacity: 0.6;
 }
 
 .live-feed__meta {
@@ -312,11 +403,49 @@
   color: var(--color-text-muted);
 }
 
-.live-feed__summary {
+.live-feed__bullets {
   margin: 0;
+  padding-left: var(--space-4);
   font-size: var(--text-sm);
   color: var(--color-text-muted);
   line-height: 1.45;
+}
+
+.live-feed__bullets li + li {
+  margin-top: 2px;
+}
+
+.live-feed__item[data-expanded] {
+  background: var(--color-surface-2);
+}
+
+.live-feed__detail {
+  margin-top: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-divider);
+}
+
+.live-feed__detail-text {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text);
+  line-height: 1.5;
+}
+
+.live-feed__sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.live-feed__sources a {
+  font-size: var(--text-xs);
+  color: var(--color-brand-teal);
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 .top-open-deals__list {

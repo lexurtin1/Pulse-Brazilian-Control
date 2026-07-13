@@ -4,9 +4,9 @@ import type { IDealRepository } from "../../ports/IDealRepository.js";
 import type { IDocumentRepository } from "../../ports/IDocumentRepository.js";
 import { toDealDto } from "./ImportPipelineCsv.js";
 
-const TOP_OPEN_DEALS_LIMIT = 4;
+const TOP_OPEN_DEALS_LIMIT = 3;
 
-/** Top 4 open deals (Live/Lost excluded) from the latest Pipeline CSV upload, ranked by Amount descending — biggest in the funnel, not risk-adjusted. */
+/** Top 3 open deals (Live/Lost excluded) from the latest Pipeline CSV upload, ranked by Amount descending — biggest in the funnel, not risk-adjusted. */
 export class GetTopOpenDeals {
   constructor(
     private readonly deals: IDealRepository,

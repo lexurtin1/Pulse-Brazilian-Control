@@ -5,7 +5,7 @@ import { runResearchSweep } from "../../api/client";
 import "./PerplexitySweepButton.css";
 
 interface PerplexitySweepButtonProps {
-  /** Called after a completed sweep (even with per-account errors), so the caller can refresh the signal feed. */
+  /** Called after a completed sweep (even with per-topic errors), so the caller can refresh the signal feed. */
   onComplete?: () => void;
   /** "fab" (default): floating circular trigger + fixed popover. "inline": flows as a normal button, for the Command Centre's Feed Controls card. */
   variant?: "fab" | "inline";
@@ -15,14 +15,10 @@ interface PerplexitySweepButtonProps {
  * Manually fires the same GET /api/signals/research-sweep endpoint Vercel
  * Cron hits on schedule — real Perplexity calls, real spend, no confirmation
  * step (per the operator's explicit request for a one-press manual trigger).
- * The limit input caps how many eligible accounts get processed, so a manual
- * test run doesn't have to mean spending on the whole book at once — the
- * scheduled cron run always omits it and covers everyone eligible.
+ * Always covers the same fixed set of market-wide topics; there's nothing
+ * left to cap since it's not looping over accounts.
  */
-const DEFAULT_LIMIT = 3;
-
 export function PerplexitySweepButton({ onComplete, variant = "fab" }: PerplexitySweepButtonProps) {
-  const [limit, setLimit] = useState(DEFAULT_LIMIT);
   const [isRunning, setIsRunning] = useState(false);
   const [result, setResult] = useState<RunMarketResearchSweepResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -33,7 +29,7 @@ export function PerplexitySweepButton({ onComplete, variant = "fab" }: Perplexit
     setError(null);
 
     try {
-      const sweepResult = await runResearchSweep(limit);
+      const sweepResult = await runResearchSweep();
       setResult(sweepResult);
       onComplete?.();
     } catch (err) {
@@ -45,32 +41,18 @@ export function PerplexitySweepButton({ onComplete, variant = "fab" }: Perplexit
 
   const panelContent = (
     <>
-      <label className="perplexity-sweep-panel__limit">
-        Run for
-        <input
-          type="number"
-          min={1}
-          max={200}
-          value={limit}
-          disabled={isRunning}
-          onChange={(event) => {
-            const next = Number(event.target.value);
-            if (Number.isFinite(next) && next >= 1) setLimit(Math.floor(next));
-          }}
-        />
-        account{limit === 1 ? "" : "s"}
-      </label>
-
       {result && (
         <div className="perplexity-sweep-result" role="status">
           <p>
-            <strong>{result.accountsProcessed}</strong> account{result.accountsProcessed === 1 ? "" : "s"} processed,{" "}
-            <strong>{result.signalsCreated}</strong> signal{result.signalsCreated === 1 ? "" : "s"} created.
+            <strong>{result.topicsProcessed}</strong> topic{result.topicsProcessed === 1 ? "" : "s"} checked,{" "}
+            <strong>{result.signalsCreated}</strong> new signal{result.signalsCreated === 1 ? "" : "s"} found.
           </p>
           {result.errors.length > 0 && (
             <ul className="perplexity-sweep-result__errors">
               {result.errors.map((err) => (
-                <li key={err.accountId}>{err.message}</li>
+                <li key={err.topic}>
+                  {err.topic}: {err.message}
+                </li>
               ))}
             </ul>
           )}
@@ -91,12 +73,12 @@ export function PerplexitySweepButton({ onComplete, variant = "fab" }: Perplexit
         <button
           type="button"
           className="feed-action-button"
-          aria-label={`Run Perplexity research sweep now, limited to ${limit} account${limit === 1 ? "" : "s"}`}
+          aria-label="Run Perplexity market sweep now"
           disabled={isRunning}
           onClick={handleClick}
         >
           {isRunning ? <Loader2 size={16} strokeWidth={2} className="perplexity-sweep-fab__spin" /> : <Search size={16} strokeWidth={2} />}
-          <span>Perplexity search</span>
+          <span>Run market sweep</span>
         </button>
         <div className="perplexity-sweep-panel perplexity-sweep-panel--inline">{panelContent}</div>
       </div>
@@ -110,8 +92,8 @@ export function PerplexitySweepButton({ onComplete, variant = "fab" }: Perplexit
       <button
         type="button"
         className="perplexity-sweep-fab"
-        aria-label={`Run Perplexity research sweep now, limited to ${limit} account${limit === 1 ? "" : "s"}`}
-        title={`Run Perplexity research sweep now, limited to ${limit} account${limit === 1 ? "" : "s"}`}
+        aria-label="Run Perplexity market sweep now"
+        title="Run Perplexity market sweep now"
         disabled={isRunning}
         onClick={handleClick}
       >

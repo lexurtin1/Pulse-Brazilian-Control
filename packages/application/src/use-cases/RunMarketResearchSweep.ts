@@ -1,126 +1,157 @@
 import {
-  type Account,
-  AccountStatus,
   asSignalId,
   ConfidenceScore,
   ConnectorSource,
   EvidenceKind,
   EvidenceReference,
+  GeographicScope,
   Signal,
   SignalOrigin,
   SignalType,
 } from "@pulse-brazil/domain";
 import type { RunMarketResearchSweepError, RunMarketResearchSweepResult } from "../dto/RunMarketResearchSweepResult.js";
-import type { IAccountRepository } from "../ports/IAccountRepository.js";
 import type { IIdGenerator } from "../ports/IIdGenerator.js";
 import type { IMarketResearchService, MarketResearchRecency } from "../ports/IMarketResearchService.js";
 import type { ISignalRepository } from "../ports/ISignalRepository.js";
 
-export interface RunMarketResearchSweepCommand {
-  /** Caps how many eligible accounts are processed, in the same alphabetical-by-name order IAccountRepository.findAll returns — lets a manual trigger test against a handful of accounts instead of the whole book. Omitted (e.g. the scheduled cron) means no cap. */
-  limit?: number;
-}
-
-interface ResearchQueryTemplate {
-  category: string;
+interface MarketSweepTopic {
+  label: string;
+  type: SignalType;
   question: string;
   recency: MarketResearchRecency;
 }
 
 /**
- * The three fixed research angles run for every account. Deliberately
- * account-name-only: themes and geography aren't woven into these templates.
+ * The fixed set of market-wide research angles run every sweep — deliberately
+ * not account-specific. Each maps 1:1 to a SignalType so the live feed's
+ * filter chips line up with what the sweep actually produces.
  */
-function buildQueryTemplates(accountName: string): ResearchQueryTemplate[] {
-  return [
-    { category: "News", question: `${accountName} Brazil market news`, recency: "P7D" },
-    { category: "Procurement", question: `${accountName} procurement contracts Brazil`, recency: "P30D" },
-    { category: "Leadership", question: `${accountName} executive appointments OR leadership changes Brazil`, recency: "P30D" },
-  ];
-}
+const MARKET_SWEEP_TOPICS: MarketSweepTopic[] = [
+  {
+    label: "Competitor movements",
+    type: SignalType.CompetitiveIntelligence,
+    question:
+      "What are Allfunds and other fund order-routing or fund distribution competitors of Calastone doing in Brazil recently — new partnerships, product launches, client wins, or expansion moves?",
+    recency: "P7D",
+  },
+  {
+    label: "Regulatory change",
+    type: SignalType.RegulatoryChange,
+    question:
+      "What regulatory changes affecting the Brazilian asset management or fund distribution industry have happened recently, including pension reform?",
+    recency: "P7D",
+  },
+  {
+    label: "Cross-border investment",
+    type: SignalType.CrossBorder,
+    question:
+      "What recent changes or developments affect cross-border investment flows into or out of Brazil for funds and asset managers?",
+    recency: "P7D",
+  },
+  {
+    label: "Tokenisation",
+    type: SignalType.Tokenisation,
+    question:
+      "What recent developments are there in tokenisation of funds or securities in Brazil, or affecting the Brazilian asset management market?",
+    recency: "P7D",
+  },
+  {
+    label: "ETF market",
+    type: SignalType.ETF,
+    question: "What recent news is there about ETFs in the Brazilian market — new launches, regulatory changes, or flows?",
+    recency: "P7D",
+  },
+  {
+    label: "General market movements",
+    type: SignalType.MarketStructure,
+    question:
+      "What overall Brazilian fund distribution and asset management market news or movements have happened recently — AUM trends, new entrants, or shifts in distribution models?",
+    recency: "P7D",
+  },
+];
 
 const EXCERPT_MAX_LENGTH = 500;
 /** No per-result confidence signal exists to derive one from — automated web research is treated as flat medium confidence until reviewed. */
 const RESEARCH_SIGNAL_CONFIDENCE = 0.6;
 
 /**
- * The daily automated market-research sweep: for every active account, runs
- * three fixed research queries (news, procurement, leadership) through
- * IMarketResearchService and records each result as a MachineDerived
- * Signal. Never throws on a single account's failure — a whole account
- * (all three queries) is treated as one unit; a failure anywhere within it
- * is collected into the result instead of stopping the rest of the sweep.
+ * The recurring automated market-research sweep: for each of the fixed
+ * MARKET_SWEEP_TOPICS, asks IMarketResearchService for developments since
+ * the last time that topic was checked, and records genuinely new findings
+ * as a MachineDerived Signal tagged with that topic's SignalType. Deliberately
+ * not account-specific — see the topic list above. A topic reporting nothing
+ * new produces no signal at all, never a placeholder. Never throws on a
+ * single topic's failure — it's collected into the result instead of
+ * stopping the rest of the sweep.
  */
 export class RunMarketResearchSweep {
   constructor(
-    private readonly accounts: IAccountRepository,
     private readonly signals: ISignalRepository,
     private readonly marketResearch: IMarketResearchService,
     private readonly idGenerator: IIdGenerator,
   ) {}
 
-  async execute(command: RunMarketResearchSweepCommand): Promise<RunMarketResearchSweepResult> {
-    const allAccounts = await this.accounts.findAll();
-    // Researched: accounts still being pursued or engaged (Prospect, Active).
-    // Skipped: Dormant/Churned — no value spending research calls on
-    // relationships that are already given up on.
-    const eligibleAccounts = allAccounts.filter(
-      (account) => account.status === AccountStatus.Active || account.status === AccountStatus.Prospect,
-    );
-    const activeAccounts =
-      command.limit !== undefined && command.limit >= 0 ? eligibleAccounts.slice(0, command.limit) : eligibleAccounts;
-
+  async execute(): Promise<RunMarketResearchSweepResult> {
     let signalsCreated = 0;
     const errors: RunMarketResearchSweepError[] = [];
 
-    for (const account of activeAccounts) {
+    for (const topic of MARKET_SWEEP_TOPICS) {
       try {
-        signalsCreated += await this.processAccount(account);
+        if (await this.processTopic(topic)) {
+          signalsCreated += 1;
+        }
       } catch (error) {
-        errors.push({ accountId: account.id, message: error instanceof Error ? error.message : String(error) });
+        errors.push({ topic: topic.label, message: error instanceof Error ? error.message : String(error) });
       }
     }
 
-    return { accountsProcessed: activeAccounts.length, signalsCreated, errors };
+    return { topicsProcessed: MARKET_SWEEP_TOPICS.length, signalsCreated, errors };
   }
 
-  private async processAccount(account: Account): Promise<number> {
-    let updatedAccount = account;
-    let created = 0;
+  private async processTopic(topic: MarketSweepTopic): Promise<boolean> {
+    const previous = await this.signals.findMostRecentByType(topic.type);
+    const priorBullets = previous ? previous.summary.split("\n").filter((line) => line.trim().length > 0) : [];
 
-    for (const template of buildQueryTemplates(account.name)) {
-      const result = await this.marketResearch.research({ question: template.question, recency: template.recency });
-      const [firstSource] = result.sources;
+    const result = await this.marketResearch.research({
+      question: topic.question,
+      recency: topic.recency,
+      priorBullets,
+    });
 
-      const signal = Signal.of({
-        id: asSignalId(this.idGenerator.newId()),
-        source: ConnectorSource.WebResearch,
-        type: SignalType.MarketResearch,
-        title: `${template.category}: ${account.name}`,
-        summary: result.answer,
-        linkedAccountIds: [account.id],
-        geographicScope: account.geographicScope,
-        dateObserved: result.retrievedAt,
-        evidence: [
-          EvidenceReference.of({
-            kind: EvidenceKind.ManualAssertion,
-            excerpt: result.answer.slice(0, EXCERPT_MAX_LENGTH),
-            locator: firstSource?.url,
-          }),
-        ],
-        confidence: ConfidenceScore.of(RESEARCH_SIGNAL_CONFIDENCE),
-        origin: SignalOrigin.MachineDerived,
-      });
-
-      await this.signals.save(signal);
-      updatedAccount = updatedAccount.linkSignal(signal.id);
-      created += 1;
+    if (result.bullets.length === 0) {
+      return false;
     }
 
-    if (created > 0) {
-      await this.accounts.save(updatedAccount);
-    }
+    const evidence =
+      result.sources.length > 0
+        ? result.sources.map((source, index) =>
+            EvidenceReference.of({
+              kind: EvidenceKind.ManualAssertion,
+              excerpt: index === 0 ? result.detail.slice(0, EXCERPT_MAX_LENGTH) : source.snippet?.slice(0, EXCERPT_MAX_LENGTH),
+              locator: source.url,
+            }),
+          )
+        : [
+            EvidenceReference.of({
+              kind: EvidenceKind.ManualAssertion,
+              excerpt: result.detail.slice(0, EXCERPT_MAX_LENGTH),
+            }),
+          ];
 
-    return created;
+    const signal = Signal.of({
+      id: asSignalId(this.idGenerator.newId()),
+      source: ConnectorSource.WebResearch,
+      type: topic.type,
+      title: topic.label,
+      summary: result.bullets.join("\n"),
+      geographicScope: GeographicScope.brazil(),
+      dateObserved: result.retrievedAt,
+      evidence,
+      confidence: ConfidenceScore.of(RESEARCH_SIGNAL_CONFIDENCE),
+      origin: SignalOrigin.MachineDerived,
+    });
+
+    await this.signals.save(signal);
+    return true;
   }
 }

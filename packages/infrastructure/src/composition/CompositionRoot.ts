@@ -117,7 +117,7 @@ export class CompositionRoot {
     this.createNote = new CreateNote(notes, accounts, idGenerator);
     this.processDocumentUpload = new ProcessDocumentUpload(documents, accounts, claudeService, this.createSignal, idGenerator);
     this.generateInsight = new GenerateInsight(insights, claudeService, idGenerator, this.buildContextBundle);
-    this.runMarketResearchSweep = new RunMarketResearchSweep(accounts, signals, marketResearch, idGenerator);
+    this.runMarketResearchSweep = new RunMarketResearchSweep(signals, marketResearch, idGenerator);
     this.importLocationCsv = new ImportLocationCsv(locationRecords, documents, accounts, geocoder, idGenerator, accountCountSnapshots);
     this.listLocationRecordsForMap = new ListLocationRecordsForMap(locationRecords, accounts);
     this.createAccountFromLocationRecord = new CreateAccountFromLocationRecord(locationRecords, accounts, idGenerator);

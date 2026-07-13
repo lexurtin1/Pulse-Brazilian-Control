@@ -106,8 +106,7 @@ export function createAccount(params: {
   });
 }
 
-/** Triggers a real Perplexity call per query (3 per Prospect/Active account) — same endpoint Vercel Cron hits on schedule. `limit` caps how many eligible accounts are processed. */
-export function runResearchSweep(limit?: number): Promise<RunMarketResearchSweepResult> {
-  const query = limit !== undefined ? `?limit=${limit}` : "";
-  return fetchJson(`/api/signals/research-sweep${query}`);
+/** Triggers a real Perplexity call per market-wide topic (6 fixed topics) — same endpoint Vercel Cron hits on schedule. */
+export function runResearchSweep(): Promise<RunMarketResearchSweepResult> {
+  return fetchJson("/api/signals/research-sweep");
 }

@@ -107,6 +107,15 @@ export class PostgresSignalRepository implements ISignalRepository {
     return rows.map(rowToSignal);
   }
 
+  async findMostRecentByType(type: SignalType): Promise<Signal | null> {
+    const { rows } = await this.pool.query<SignalRow>(
+      "SELECT * FROM signals WHERE type = $1 ORDER BY date_observed DESC LIMIT 1",
+      [type],
+    );
+    const [row] = rows;
+    return row ? rowToSignal(row) : null;
+  }
+
   async save(signal: Signal): Promise<void> {
     await this.pool.query(
       `

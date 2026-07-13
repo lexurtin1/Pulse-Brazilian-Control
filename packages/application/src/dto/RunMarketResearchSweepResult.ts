@@ -1,10 +1,10 @@
 export interface RunMarketResearchSweepError {
-  accountId: string;
+  topic: string;
   message: string;
 }
 
 export interface RunMarketResearchSweepResult {
-  accountsProcessed: number;
+  topicsProcessed: number;
   signalsCreated: number;
   errors: RunMarketResearchSweepError[];
 }

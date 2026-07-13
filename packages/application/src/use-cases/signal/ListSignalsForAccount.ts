@@ -1,5 +1,5 @@
 import { asAccountId, type Signal } from "@pulse-brazil/domain";
-import type { SignalDto, SignalGeographicScopeDto } from "../../dto/signal/SignalDto.js";
+import type { SignalDto, SignalGeographicScopeDto, SignalSourceDto } from "../../dto/signal/SignalDto.js";
 import { ValidationError } from "../../errors/ApplicationError.js";
 import type { ISignalRepository } from "../../ports/ISignalRepository.js";
 
@@ -13,12 +13,25 @@ export function toSignalDto(signal: Signal): SignalDto {
       }
     : undefined;
 
+  const detail = signal.evidence.find((evidence) => evidence.excerpt)?.excerpt;
+
+  const seenUrls = new Set<string>();
+  const sources: SignalSourceDto[] = [];
+  for (const evidence of signal.evidence) {
+    if (evidence.locator && !seenUrls.has(evidence.locator)) {
+      seenUrls.add(evidence.locator);
+      sources.push({ url: evidence.locator });
+    }
+  }
+
   return {
     id: signal.id,
     source: signal.source,
     type: signal.type,
     title: signal.title,
     summary: signal.summary,
+    detail,
+    sources,
     linkedAccountIds: [...signal.linkedAccountIds],
     linkedThemeIds: [...signal.linkedThemeIds],
     geographicScope,
