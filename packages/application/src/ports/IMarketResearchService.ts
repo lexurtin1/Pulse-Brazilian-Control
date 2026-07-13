@@ -24,6 +24,8 @@ export interface MarketResearchSource {
  * skips creating a signal in that case rather than showing an empty card.
  */
 export interface MarketResearchResult {
+  /** A short, specific, attention-grabbing headline for the single most newsworthy bullet — e.g. "Itaú pilots tokenised fund shares", not the generic topic name. Empty when bullets is empty. */
+  headline: string;
   bullets: string[];
   detail: string;
   sources: MarketResearchSource[];

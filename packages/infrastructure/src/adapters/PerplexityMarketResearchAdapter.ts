@@ -19,6 +19,11 @@ const RECENCY_TO_SEARCH_FILTER: Record<Exclude<MarketResearchRecency, null>, str
 const RESPONSE_SCHEMA = {
   type: "object",
   properties: {
+    headline: {
+      type: "string",
+      description:
+        "A short, specific, attention-grabbing headline (max ~10 words) for the single most newsworthy item in the bullets — name the company or body and what it actually did, e.g. 'Itau pilots tokenised fund shares' or 'CVM proposes cross-border distribution rules', not a generic restatement of the topic being researched (never something like 'ETF market' or 'Tokenisation update'). Always in English. Empty string if bullets is empty.",
+    },
     bullets: {
       type: "array",
       items: { type: "string" },
@@ -32,10 +37,11 @@ const RESPONSE_SCHEMA = {
         "2-3 plain-English sentences (always in English, even when the source material is in Portuguese or another language) giving a bit more context behind the bullets, still written for a business reader with no domain jargon. Empty string if bullets is empty.",
     },
   },
-  required: ["bullets", "detail"],
+  required: ["headline", "bullets", "detail"],
 };
 
 interface PerplexityStructuredContent {
+  headline: string;
   bullets: string[];
   detail: string;
 }
@@ -139,6 +145,7 @@ export class PerplexityMarketResearchAdapter implements IMarketResearchService {
     }));
 
     return {
+      headline: structured.headline ?? "",
       bullets: structured.bullets ?? [],
       detail: structured.detail ?? "",
       sources,

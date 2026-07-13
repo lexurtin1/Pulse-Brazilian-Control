@@ -142,7 +142,7 @@ export class RunMarketResearchSweep {
       id: asSignalId(this.idGenerator.newId()),
       source: ConnectorSource.WebResearch,
       type: topic.type,
-      title: topic.label,
+      title: result.headline || topic.label,
       summary: result.bullets.join("\n"),
       geographicScope: GeographicScope.brazil(),
       dateObserved: result.retrievedAt,
