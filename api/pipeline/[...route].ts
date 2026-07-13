@@ -9,10 +9,17 @@ import pipelineTopOpenDeals from "../../packages/api/src/handlers/pipelineTopOpe
  * endpoint its own file (as every other route in this project does) pushed
  * the project over that limit. This collapses import/summary/top-open-deals
  * into one function while keeping the exact same client-facing URLs.
+ *
+ * Parses the segment from req.url rather than req.query.route: on this
+ * project's builder, a `[...route].ts` catch-all's query key showed up as
+ * the literal string "...route" instead of "route" (confirmed via a
+ * temporary debug branch against the live deployment) — parsing the path
+ * directly sidesteps that quirk entirely.
  */
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
-  const route = req.query.route;
-  const segment = Array.isArray(route) ? route[0] : route;
+  const pathname = (req.url ?? "").split("?")[0] ?? "";
+  const segments = pathname.replace(/^\/api\/pipeline\/?/, "").split("/").filter(Boolean);
+  const segment = segments[0];
 
   switch (segment) {
     case "import":
