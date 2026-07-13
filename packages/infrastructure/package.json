@@ -14,15 +14,16 @@
     "reconcile:accounts": "tsx src/db/reconcile-salesforce-accounts.ts"
   },
   "devDependencies": {
-    "typescript": "^5.5.0",
     "@types/node": "^22.0.0",
     "@types/pg": "^8.11.0",
-    "tsx": "^4.19.0"
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.0"
   },
   "dependencies": {
-    "@pulse-brazil/domain": "*",
-    "@pulse-brazil/application": "*",
     "@anthropic-ai/sdk": "^0.110.0",
+    "@neondatabase/serverless": "^1.1.0",
+    "@pulse-brazil/application": "*",
+    "@pulse-brazil/domain": "*",
     "pg": "^8.13.0",
     "ulid": "^2.3.0"
   }
