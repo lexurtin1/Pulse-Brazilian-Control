@@ -11,10 +11,10 @@
   pointer-events: none;
 }
 
-.pulse-logo__wordmark {
-  font-size: var(--text-xs);
-  font-weight: 600;
-  letter-spacing: 0.28em;
+.pulse-logo__mark {
+  height: 20px;
+  width: auto;
+  display: block;
 }
 
 .pulse-logo[data-inline] {

@@ -5,14 +5,14 @@ import "./CommandHeader.css";
 
 export function CommandHeader() {
   const { theme, toggleTheme } = useTheme();
-  const { brt, utc } = useClock();
+  const { brt, london } = useClock();
 
   return (
     <header className="command-header">
       <div className="command-header__left">
         <PulseLogo inline />
         <span className="command-header__divider" aria-hidden="true" />
-        <span className="command-header__title">BRASIL COMMAND · CONTROL CENTRE</span>
+        <span className="command-header__title">BRAZIL INTELLIGENCE</span>
         <span className="command-header__live-badge">
           <span className="live-dot" aria-hidden="true" />
           LIVE
@@ -20,8 +20,8 @@ export function CommandHeader() {
       </div>
       <div className="command-header__right">
         <span className="command-header__clock">{brt} BRT</span>
-        <span className="command-header__clock">{utc} UTC</span>
-        <span className="command-header__user">ALEX CURTIN · BRAZIL SME</span>
+        <span className="command-header__clock">{london} LONDON</span>
+        <span className="command-header__user">ALEX CURTIN</span>
         <button
           type="button"
           className="command-header__theme-toggle"

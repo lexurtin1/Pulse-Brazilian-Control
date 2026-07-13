@@ -15,6 +15,6 @@ export function useClock() {
 
   return {
     brt: format(now, "America/Sao_Paulo"),
-    utc: format(now, "UTC"),
+    london: format(now, "Europe/London"),
   };
 }
