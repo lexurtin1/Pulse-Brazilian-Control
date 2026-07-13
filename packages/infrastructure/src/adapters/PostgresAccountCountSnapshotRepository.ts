@@ -1,6 +1,6 @@
 import type { IAccountCountSnapshotRepository } from "@pulse-brazil/application";
 import { AccountCountSnapshot, asAccountCountSnapshotId, asDocumentId, type AccountCountSnapshotProps } from "@pulse-brazil/domain";
-import type { Pool } from "pg";
+import type { Pool } from "@neondatabase/serverless";
 
 interface AccountCountSnapshotRow {
   id: string;

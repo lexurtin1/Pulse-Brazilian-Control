@@ -15,14 +15,17 @@ function assertValid(props: AccountCountSnapshotProps): void {
 }
 
 /**
- * A point-in-time count of Active accounts. Unlike Deal, Account.status is
+ * A point-in-time count of tracked accounts — the "Active Accounts · BR"
+ * KPI, which means the desk's total Brazil target list, not a filter on
+ * AccountStatus.Active (a CRM lifecycle status meaning "currently a live
+ * paying client"; most tracked accounts are legitimately Prospect/Dormant
+ * and still belong on this count). Unlike Deal, the accounts table is
  * mutable current state rather than an append-only import artifact, so "the
- * count as of a given moment" can't be reconstructed retroactively from the
- * accounts table — it has to be captured and persisted when it's true.
- * Written once after every ImportLocationCsv run (see
- * claude/INTEGRATION_PLAN.md Feature 2), plus one manual backfill row for
- * account data that predates this feature. `sourceDocumentId` is absent on
- * that backfill row since it has no triggering upload.
+ * count as of a given moment" can't be reconstructed retroactively — it has
+ * to be captured and persisted when it's true. Written once after every
+ * ImportLocationCsv run (see claude/INTEGRATION_PLAN.md Feature 2), plus
+ * manual backfill/corrective rows where needed. `sourceDocumentId` is
+ * absent on rows with no triggering upload.
  */
 export class AccountCountSnapshot {
   private constructor(private readonly props: AccountCountSnapshotProps) {}

@@ -1,7 +1,7 @@
 import type { IContextBundleRepository } from "@pulse-brazil/application";
 import { toEvidenceReference } from "@pulse-brazil/application";
 import { asAccountId, asContextBundleId, ContextBundle, type ContextBundleId } from "@pulse-brazil/domain";
-import type { Pool } from "pg";
+import type { Pool } from "@neondatabase/serverless";
 
 interface EvidenceReferenceJson {
   kind: string;

@@ -1,6 +1,6 @@
 import type { INoteRepository } from "@pulse-brazil/application";
 import { type AccountId, asAccountId, asNoteId, Note, type NoteId, NoteType } from "@pulse-brazil/domain";
-import type { Pool } from "pg";
+import type { Pool } from "@neondatabase/serverless";
 
 interface NoteRow {
   id: string;

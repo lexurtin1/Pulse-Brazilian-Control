@@ -1,6 +1,5 @@
 import {
   AccountCountSnapshot,
-  AccountStatus,
   asAccountCountSnapshotId,
   asAccountId,
   asDocumentId,
@@ -258,14 +257,18 @@ export class ImportLocationCsv {
     await this.documents.save(finalDocument);
 
     // Account.status is mutable current state, not an append-only import
-    // artifact like Deal — so "the active count as of this upload" has to
+    // artifact like Deal — so "the account count as of this upload" has to
     // be captured now, not reconstructed later (see
-    // claude/INTEGRATION_PLAN.md Feature 2).
-    const activeCount = [...accountsById.values()].filter((account) => account.status === AccountStatus.Active).length;
+    // claude/INTEGRATION_PLAN.md Feature 2). "Active Accounts · BR" means
+    // the total set of Brazil accounts Pulse is tracking, not a filter on
+    // AccountStatus.Active (a CRM lifecycle status meaning "currently a
+    // live paying client") — the desk's real target list is 44 accounts
+    // regardless of where each one sits in the sales lifecycle.
+    const totalAccountCount = accountsById.size;
     await this.accountCountSnapshots.save(
       AccountCountSnapshot.record({
         id: asAccountCountSnapshotId(this.idGenerator.newId()),
-        count: activeCount,
+        count: totalAccountCount,
         asOf: document.provenance.uploadedAt,
         sourceDocumentId: document.id,
       }),

@@ -64,24 +64,33 @@ without a reason — if one turns out to be wrong, update this section and say w
 - **Number formatting**: every numeric display on this dashboard (currency,
   counts, deltas, percentages, the future City Activity Index) is rounded to
   a whole number — no decimal places anywhere, on any card.
-- **Local dev cannot reach Neon; verification happens on Vercel, not
-  localhost (decided 2026-07-13)**: this machine's network completes a full
-  TLS handshake to the Neon host on port 443 but resets the connection on
-  port 5432 (confirmed by direct TCP/TLS probing) — a network policy
-  blocking non-HTTPS TLS ports, not a bad connection string (`.env.local`
-  has a valid, freshly-pulled `DATABASE_URL`) and not a Postgres/Docker
-  tooling gap. This isn't fixable from the client side, so the workflow is
-  redesigned around it rather than worked around: migrations run as part of
-  the Vercel build (`vercel.json`'s `buildCommand` now runs
-  `npm run migrate --workspace=@pulse-brazil/infrastructure` before the UI
-  build — safe to run on every deploy since `run-migrations.ts` already
-  tracks applied files in `schema_migrations` and skips them), and every
-  feature's **Verified E2E** stage from now on means confirming it on a
-  Vercel deployment (preview or production) in a real browser against real
-  Neon data, not a local Postgres. This supersedes the "sandboxed
-  environment has no Postgres/Docker" notes on Phase 0 and Features 1–2
-  below — those weren't a temporary sandbox gap, they were this same
-  network limitation, just not yet root-caused.
+- **Local/sandbox dev reaches Neon via the WebSocket driver, not raw pg
+  (decided 2026-07-13, revised same day)**: this machine's network completes
+  a full TLS handshake to the Neon host on port 443 but resets the
+  connection on port 5432 (confirmed by direct TCP/TLS probing) — a network
+  policy blocking non-HTTPS TLS ports, not a bad connection string or a
+  Postgres/Docker tooling gap. Rather than routing all verification through
+  Vercel deploys (the first fix tried), `packages/infrastructure/src/db/pool.ts`
+  now builds its `Pool` from `@neondatabase/serverless` instead of `pg` —
+  same pg-compatible API (`BEGIN`/`COMMIT`, `pool.connect()`, etc.), same
+  call sites unchanged, but tunnelled over a WebSocket on port 443 instead of
+  raw Postgres wire protocol on 5432, which gets through this network fine.
+  `neonConfig.webSocketConstructor` is set explicitly (the `ws` package) so
+  this isn't dependent on Node's native WebSocket support, since Vercel's
+  serverless functions may run an older Node version than this sandbox's.
+  All 12 repositories' `import type { Pool } from "pg"` were repointed to
+  `@neondatabase/serverless`'s `Pool` type (their `PoolClient` differs
+  slightly from `pg`'s at the type level). Confirmed working: ran
+  `npm run migrate --workspace=@pulse-brazil/infrastructure` from this
+  sandbox straight against production Neon (all 13 migrations already
+  applied, clean run). `vercel.json`'s `buildCommand` still runs migrations
+  on every deploy too (cheap and idempotent, a good safety net) but it's no
+  longer the *only* way to reach Neon — every feature's **Verified E2E**
+  stage can now be run locally in this environment against real Neon data,
+  same as it can on a Vercel deployment. `reconcile-salesforce-accounts.ts`
+  had already independently discovered and worked around this exact issue
+  for itself (with an unsafe `as unknown as Pool` cast); it now just uses
+  the shared `createPool()` like everything else.
 - **Map legend correction (found during Phase 0 build)**: the existing
   `MapLegend` component doesn't show the mockup's four signal-type dots
   (Account Activity/Pipeline/Regulatory/Risk) — it shows the real

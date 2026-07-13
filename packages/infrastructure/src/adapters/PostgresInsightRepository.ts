@@ -14,7 +14,7 @@ import {
   RecommendedAction,
   RelatedEntityKind,
 } from "@pulse-brazil/domain";
-import type { Pool } from "pg";
+import type { Pool } from "@neondatabase/serverless";
 
 interface EvidenceReferenceJson {
   kind: string;

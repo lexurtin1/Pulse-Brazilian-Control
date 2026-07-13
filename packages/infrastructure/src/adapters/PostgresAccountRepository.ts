@@ -21,7 +21,7 @@ import {
   TemperatureAssessment,
   TemperatureBand,
 } from "@pulse-brazil/domain";
-import type { Pool } from "pg";
+import type { Pool } from "@neondatabase/serverless";
 
 interface CoordinateJson {
   latitude: number;

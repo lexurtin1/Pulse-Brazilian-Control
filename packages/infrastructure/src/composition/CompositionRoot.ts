@@ -23,7 +23,7 @@ import {
   SubmitDocument,
   UpdateAccountTemperature,
 } from "@pulse-brazil/application";
-import type { Pool } from "pg";
+import type { Pool } from "@neondatabase/serverless";
 import { ClaudeServiceAdapter } from "../adapters/ClaudeServiceAdapter.js";
 import { GeocoderAdapter } from "../adapters/GeocoderAdapter.js";
 import { PerplexityMarketResearchAdapter } from "../adapters/PerplexityMarketResearchAdapter.js";

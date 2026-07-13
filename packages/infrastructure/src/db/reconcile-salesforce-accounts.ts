@@ -2,8 +2,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { ReconcileSalesforceAccounts } from "@pulse-brazil/application";
-import { Pool as NeonHttpPool } from "@neondatabase/serverless";
-import type { Pool } from "pg";
+import { createPool } from "./pool.js";
 import { UlidIdGenerator } from "../adapters/UlidIdGenerator.js";
 import { PostgresAccountRepository } from "../adapters/PostgresAccountRepository.js";
 
@@ -17,13 +16,6 @@ const REPO_ROOT = path.resolve(here, "..", "..", "..", "..");
  * and an address/coordinate only where none exists yet). Run
  * `npm run migrate --workspace=@pulse-brazil/infrastructure` first if
  * migration 015 hasn't landed yet — this script does not run migrations.
- *
- * Uses @neondatabase/serverless's Pool (HTTPS-based) rather than this
- * package's usual pg-based createPool — on a network that blocks outbound
- * raw Postgres (port 5432) but allows HTTPS, the pg driver fails with
- * ECONNRESET while this works, since it's the same wire protocol tunnelled
- * over 443. Structurally compatible with pg's Pool for the .query()/.end()
- * calls PostgresAccountRepository makes, verified against production.
  *
  * Usage: DATABASE_URL=... npx tsx src/db/reconcile-salesforce-accounts.ts [csvPath]
  * Defaults to "Everything Brazil/Brazil_Accounts_Enriched_2026-07-09 (1).csv"
@@ -43,7 +35,7 @@ async function main(): Promise<void> {
   console.log(`Reading ${csvPath}...`);
   const csvText = await readFile(csvPath, "utf-8");
 
-  const pool = new NeonHttpPool({ connectionString }) as unknown as Pool;
+  const pool = createPool(connectionString);
   const accounts = new PostgresAccountRepository(pool);
   const idGenerator = new UlidIdGenerator();
   const reconcile = new ReconcileSalesforceAccounts(accounts, idGenerator);

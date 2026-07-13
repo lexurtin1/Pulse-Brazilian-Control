@@ -14,7 +14,7 @@ import {
   RawAddressInput,
   RecordReviewStatus,
 } from "@pulse-brazil/domain";
-import type { Pool } from "pg";
+import type { Pool } from "@neondatabase/serverless";
 
 interface LocationRecordRow {
   id: string;
