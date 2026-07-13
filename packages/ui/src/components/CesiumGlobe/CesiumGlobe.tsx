@@ -46,14 +46,18 @@ const BRAZIL_CENTER_LATITUDE = -14;
 const SPACE_ALTITUDE_METERS = 25_000_000;
 const FLY_IN_DURATION_SECONDS = 3;
 
-// Pins read as large landmarks from a whole-Brazil-or-further view, then
-// shrink down as you zoom into a city/account so they don't dominate the
-// close-up view. One shared curve (a multiplier on each entity's own base
-// pixelSize) rather than per-kind constants, so account and location pins
-// shrink at the same rate and stay proportionate to each other at any zoom.
-const PIN_SCALE_NEAR_DISTANCE_METERS = 50_000;
-const PIN_SCALE_NEAR_FACTOR = 0.4;
-const PIN_SCALE_FAR_DISTANCE_METERS = 3_000_000;
+// Pins read as large, countable landmarks from a whole-Brazil-or-further
+// view, then retreat down to a small, precise marker as you zoom into a
+// city/account so they lock onto their real anchor instead of dominating
+// the close-up view. One shared curve (a multiplier on each entity's own
+// base pixelSize) rather than per-kind constants, so account and location
+// pins shrink at the same rate and stay proportionate to each other at any
+// zoom. The near bound is building-block scale (not the old 50km, which
+// hit its floor long before anything resembling a close-up) so pins keep
+// visibly shrinking all the way down to the locked-in city view.
+const PIN_SCALE_NEAR_DISTANCE_METERS = 300;
+const PIN_SCALE_NEAR_FACTOR = 0.3;
+const PIN_SCALE_FAR_DISTANCE_METERS = 2_000_000;
 const PIN_SCALE_FAR_FACTOR = 1.0;
 const PIN_SCALE_BY_DISTANCE = new Cesium.NearFarScalar(
   PIN_SCALE_NEAR_DISTANCE_METERS,
@@ -62,9 +66,16 @@ const PIN_SCALE_BY_DISTANCE = new Cesium.NearFarScalar(
   PIN_SCALE_FAR_FACTOR,
 );
 
-const ACCOUNT_PIN_BASE_SIZE = 20;
-const ACCOUNT_PIN_SELECTED_BASE_SIZE = 24;
-const LOCATION_PIN_BASE_SIZE = 16;
+const ACCOUNT_PIN_BASE_SIZE = 28;
+const ACCOUNT_PIN_SELECTED_BASE_SIZE = 34;
+const LOCATION_PIN_BASE_SIZE = 22;
+
+// Cesium's zoom-in floor defaults to 1m from the ellipsoid, which is far
+// past the point where camera-relative floating-point precision breaks
+// down — that precision loss is what reads as pins "drifting" off their
+// anchor at max zoom. Flooring the zoom keeps the camera far enough out
+// that positions (including terrain-clamped pins) stay numerically stable.
+const MINIMUM_ZOOM_DISTANCE_METERS = 100;
 
 export function CesiumGlobe({ pins, locationPins = [], selectedAccountId, onSelectAccount, onSelectLocationPin }: CesiumGlobeProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -119,6 +130,7 @@ export function CesiumGlobe({ pins, locationPins = [], selectedAccountId, onSele
     cameraController.enableTilt = true;
     cameraController.enableTranslate = true;
     cameraController.enableInputs = true;
+    cameraController.minimumZoomDistance = MINIMUM_ZOOM_DISTANCE_METERS;
 
     viewer.screenSpaceEventHandler.setInputAction((click: Cesium.ScreenSpaceEventHandler.PositionedEvent) => {
       const picked = viewer.scene.pick(click.position);
@@ -174,6 +186,7 @@ export function CesiumGlobe({ pins, locationPins = [], selectedAccountId, onSele
           outlineWidth: selected ? 3 : 2,
           disableDepthTestDistance: Number.POSITIVE_INFINITY,
           scaleByDistance: PIN_SCALE_BY_DISTANCE,
+          heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
         },
       });
     }
@@ -192,6 +205,7 @@ export function CesiumGlobe({ pins, locationPins = [], selectedAccountId, onSele
           outlineWidth: 2,
           disableDepthTestDistance: Number.POSITIVE_INFINITY,
           scaleByDistance: PIN_SCALE_BY_DISTANCE,
+          heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
         },
       });
     }
