@@ -4,6 +4,7 @@ import type {
   AccountResearchBriefDto,
   AccountSummaryDto,
   ActiveAccountsSummaryDto,
+  DashboardFreshnessDto,
   ImportLocationCsvResultDto,
   ImportPipelineCsvResultDto,
   LocationRecordMapPinDto,
@@ -82,6 +83,10 @@ export function fetchPipelineSummary(): Promise<PipelineSummaryDto | null> {
 
 export function fetchTopOpenDeals(): Promise<TopOpenDealsResultDto | null> {
   return fetchJson("/api/pipeline/top-open-deals");
+}
+
+export function fetchDashboardFreshness(): Promise<DashboardFreshnessDto> {
+  return fetchJson("/api/dashboard/freshness");
 }
 
 export function ingestDocument(params: {

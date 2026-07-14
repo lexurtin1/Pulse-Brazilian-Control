@@ -4,6 +4,7 @@ import type {
   AccountMapPinDto,
   AccountSummaryDto,
   ActiveAccountsSummaryDto,
+  DashboardFreshnessDto,
   LocationRecordMapPinDto,
   PipelineSummaryDto,
   SignalDto,
@@ -24,6 +25,7 @@ import {
   fetchAccountMapPins,
   fetchAccounts,
   fetchActiveAccountsSummary,
+  fetchDashboardFreshness,
   fetchLocationMapPins,
   fetchPipelineSummary,
   fetchRecentSignals,
@@ -59,6 +61,7 @@ export function App() {
   const [pipelineSummary, setPipelineSummary] = useState<PipelineSummaryDto | null>(null);
   const [activeAccountsSummary, setActiveAccountsSummary] = useState<ActiveAccountsSummaryDto | null>(null);
   const [topOpenDeals, setTopOpenDeals] = useState<TopOpenDealsResultDto | null>(null);
+  const [dashboardFreshness, setDashboardFreshness] = useState<DashboardFreshnessDto | null>(null);
   const [status, setStatus] = useState<LoadState>("loading");
   const [hiddenClientTypes, setHiddenClientTypes] = useState<ReadonlySet<string | undefined>>(() => new Set());
   const [mapViewMode, setMapViewMode] = useState<MapViewMode>("flat");
@@ -76,6 +79,7 @@ export function App() {
       fetchPipelineSummary(),
       fetchTopOpenDeals(),
       fetchActiveAccountsSummary(),
+      fetchDashboardFreshness(),
     ])
       .then(
         ([
@@ -86,6 +90,7 @@ export function App() {
           pipelineSummaryResult,
           topOpenDealsResult,
           activeAccountsSummaryResult,
+          dashboardFreshnessResult,
         ]) => {
           if (cancelled) return;
           setAccounts(accountsResult);
@@ -95,6 +100,7 @@ export function App() {
           setPipelineSummary(pipelineSummaryResult);
           setTopOpenDeals(topOpenDealsResult);
           setActiveAccountsSummary(activeAccountsSummaryResult);
+          setDashboardFreshness(dashboardFreshnessResult);
           setStatus("ready");
         },
       )
@@ -144,6 +150,22 @@ export function App() {
       .catch((error) => console.error("Failed to refresh active accounts summary", error));
   }, []);
 
+  // After a Pipeline CSV import or a sweep run, re-fetch the freshness ring
+  // so it reflects the new upload/sweep timestamp immediately, not just on
+  // the next full page load.
+  const refreshFreshness = useCallback(() => {
+    fetchDashboardFreshness()
+      .then(setDashboardFreshness)
+      .catch((error) => console.error("Failed to refresh dashboard freshness", error));
+  }, []);
+
+  // A research sweep run affects both the signal feed and the freshness
+  // ring's market-sweep timestamp.
+  const handleSweepComplete = useCallback(() => {
+    refreshSignals();
+    refreshFreshness();
+  }, [refreshSignals, refreshFreshness]);
+
   // One callback for all upload paths — refetching data that a given upload
   // didn't touch is cheap and harmless, and keeps UploadFAB from needing to
   // know which backend path it took.
@@ -152,7 +174,8 @@ export function App() {
     refreshSignals();
     refreshPipeline();
     refreshActiveAccountsSummary();
-  }, [refreshLocationPins, refreshSignals, refreshPipeline, refreshActiveAccountsSummary]);
+    refreshFreshness();
+  }, [refreshLocationPins, refreshSignals, refreshPipeline, refreshActiveAccountsSummary, refreshFreshness]);
 
   // After creating an account, re-fetch the account list so it's available
   // wherever accounts are listed (e.g. UploadFAB's "link to account" select).
@@ -216,7 +239,7 @@ export function App() {
         initial={showIntro ? "hidden" : false}
         animate={showIntro ? "hidden" : "visible"}
       >
-        <CommandHeader />
+        <CommandHeader freshness={dashboardFreshness} />
         <div className="command-centre__body">
           <motion.div className="kpi-strip" variants={shellItemVariants}>
             <KpiCard
@@ -258,7 +281,7 @@ export function App() {
             <FeedControlsCard
               accountsForLinking={accounts}
               onImported={refreshAfterUpload}
-              onSweepComplete={refreshSignals}
+              onSweepComplete={handleSweepComplete}
               onFeedCleared={refreshSignals}
             />
           </motion.div>

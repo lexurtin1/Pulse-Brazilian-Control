@@ -29,6 +29,19 @@ export function formatShortDate(iso: string): string {
   return new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short" }).format(new Date(iso));
 }
 
+/** "13 Jul, 08:23 LON" — explicit timezone label since this sits next to a BRT-labeled clock in the header (freshness indicator tooltip). */
+export function formatDateTimeLondon(iso: string): string {
+  const date = new Date(iso);
+  const datePart = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/London", day: "2-digit", month: "short" }).format(date);
+  const timePart = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/London",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(date);
+  return `${datePart}, ${timePart} LON`;
+}
+
 /** Whole-number count with thousands separators, e.g. "1,234". */
 export function formatCount(value: number): string {
   return new Intl.NumberFormat("en-GB").format(Math.round(value));

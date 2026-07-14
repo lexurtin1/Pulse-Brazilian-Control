@@ -22,6 +22,7 @@ export * from "./ports/ICompanyResearchService.js";
 export * from "./ports/ILocationRecordRepository.js";
 export * from "./ports/IDealRepository.js";
 export * from "./ports/IAccountCountSnapshotRepository.js";
+export * from "./ports/IMarketResearchLogRepository.js";
 
 export * from "./dto/account/AccountSummaryDto.js";
 export * from "./dto/account/AccountDetailDto.js";
@@ -43,6 +44,7 @@ export * from "./dto/pipeline/PipelineSummaryDto.js";
 export * from "./dto/pipeline/TopOpenDealsResultDto.js";
 export * from "./dto/account/ActiveAccountsSummaryDto.js";
 export * from "./dto/account/ReconcileSalesforceAccountsResultDto.js";
+export * from "./dto/dashboard/DashboardFreshnessDto.js";
 
 export * from "./validation/parseCsv.js";
 export * from "./validation/LocationCsvRowValidator.js";
@@ -74,3 +76,4 @@ export * from "./use-cases/pipeline/GetTopOpenDeals.js";
 export * from "./use-cases/account/GetActiveAccountsSummary.js";
 export * from "./use-cases/account/ReconcileSalesforceAccounts.js";
 export * from "./use-cases/account/RunAccountResearchSweep.js";
+export * from "./use-cases/dashboard/GetDashboardFreshness.js";

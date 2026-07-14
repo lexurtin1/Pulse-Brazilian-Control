@@ -11,6 +11,7 @@ import {
 } from "@pulse-brazil/domain";
 import type { RunMarketResearchSweepError, RunMarketResearchSweepResult } from "../dto/RunMarketResearchSweepResult.js";
 import type { IIdGenerator } from "../ports/IIdGenerator.js";
+import type { IMarketResearchLogRepository } from "../ports/IMarketResearchLogRepository.js";
 import type { IMarketResearchService, MarketResearchRecency } from "../ports/IMarketResearchService.js";
 import type { ISignalRepository } from "../ports/ISignalRepository.js";
 
@@ -89,6 +90,7 @@ export class RunMarketResearchSweep {
     private readonly signals: ISignalRepository,
     private readonly marketResearch: IMarketResearchService,
     private readonly idGenerator: IIdGenerator,
+    private readonly marketResearchLog: IMarketResearchLogRepository,
   ) {}
 
   async execute(): Promise<RunMarketResearchSweepResult> {
@@ -116,6 +118,18 @@ export class RunMarketResearchSweep {
       question: topic.question,
       recency: topic.recency,
       priorBullets,
+    });
+
+    // Logged whether or not the topic found anything new — this is the
+    // record that the sweep actually ran, independent of GetDashboardFreshness's
+    // other signal (Signals only exist for topics with genuine findings).
+    await this.marketResearchLog.logAttempt({
+      id: this.idGenerator.newId(),
+      accountId: null,
+      question: topic.question,
+      answer: result.detail,
+      sources: result.sources,
+      retrievedAt: result.retrievedAt,
     });
 
     if (result.bullets.length === 0) {

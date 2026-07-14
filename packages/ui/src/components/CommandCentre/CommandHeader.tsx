@@ -1,9 +1,15 @@
+import type { DashboardFreshnessDto } from "@pulse-brazil/application";
 import { useTheme } from "../../hooks/useTheme";
 import { useClock } from "../../hooks/useClock";
 import { PulseLogo } from "../PulseLogo/PulseLogo";
+import { FreshnessIndicator } from "./FreshnessIndicator";
 import "./CommandHeader.css";
 
-export function CommandHeader() {
+interface CommandHeaderProps {
+  freshness: DashboardFreshnessDto | null;
+}
+
+export function CommandHeader({ freshness }: CommandHeaderProps) {
   const { theme, toggleTheme } = useTheme();
   const { brt, london } = useClock();
 
@@ -19,6 +25,7 @@ export function CommandHeader() {
         </span>
       </div>
       <div className="command-header__right">
+        <FreshnessIndicator freshness={freshness} />
         <span className="command-header__clock">{brt} BRT</span>
         <span className="command-header__clock">{london} LONDON</span>
         <span className="command-header__user">ALEX CURTIN</span>
