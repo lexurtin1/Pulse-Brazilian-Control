@@ -12,9 +12,8 @@ import {
 } from "@pulse-brazil/domain";
 import type { SignalDto } from "../../dto/signal/SignalDto.js";
 import { NotFoundError, ValidationError } from "../../errors/ApplicationError.js";
-import type { IAccountRepository } from "../../ports/IAccountRepository.js";
 import type { IIdGenerator } from "../../ports/IIdGenerator.js";
-import type { ISignalRepository } from "../../ports/ISignalRepository.js";
+import type { IUnitOfWork } from "../../ports/IUnitOfWork.js";
 import { type EvidenceInput, toEvidenceReference } from "../account/UpdateAccountTemperature.js";
 import { toSignalDto } from "./ListSignalsForAccount.js";
 
@@ -50,8 +49,7 @@ export interface CreateSignalCommand {
  */
 export class CreateSignal {
   constructor(
-    private readonly signals: ISignalRepository,
-    private readonly accounts: IAccountRepository,
+    private readonly unitOfWork: IUnitOfWork,
     private readonly idGenerator: IIdGenerator,
   ) {}
 
@@ -65,16 +63,6 @@ export class CreateSignal {
     const origin = assertEnumMember(SignalOrigin, command.origin, "origin");
 
     const linkedAccountIds: AccountId[] = (command.linkedAccountIds ?? []).map(asAccountId);
-    const linkedAccounts = await Promise.all(
-      linkedAccountIds.map(async (accountId) => {
-        const account = await this.accounts.findById(accountId);
-        if (!account) {
-          throw new NotFoundError("Account", accountId);
-        }
-        return account;
-      }),
-    );
-
     const signal = Signal.of({
       id: asSignalId(this.idGenerator.newId()),
       source,
@@ -90,8 +78,24 @@ export class CreateSignal {
       origin,
     });
 
-    await this.signals.save(signal);
-    await Promise.all(linkedAccounts.map((account) => this.accounts.save(account.linkSignal(signal.id))));
+    await this.unitOfWork.execute(async ({ accounts, signals }) => {
+      // Lock in a stable order so concurrent multi-account signals cannot
+      // deadlock by requesting the same accounts in opposite orders.
+      const accountIdsToLock = [...linkedAccountIds].sort();
+      const linkedAccounts = [];
+      for (const accountId of accountIdsToLock) {
+        const account = await accounts.findByIdForUpdate(accountId);
+        if (!account) {
+          throw new NotFoundError("Account", accountId);
+        }
+        linkedAccounts.push(account);
+      }
+
+      await signals.save(signal);
+      for (const account of linkedAccounts) {
+        await accounts.save(account.linkSignal(signal.id));
+      }
+    });
 
     return toSignalDto(signal);
   }

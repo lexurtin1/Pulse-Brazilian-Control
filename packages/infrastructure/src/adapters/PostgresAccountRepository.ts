@@ -21,7 +21,7 @@ import {
   TemperatureAssessment,
   TemperatureBand,
 } from "@pulse-brazil/domain";
-import type { Pool } from "@neondatabase/serverless";
+import type { Pool, PoolClient } from "@neondatabase/serverless";
 
 interface CoordinateJson {
   latitude: number;
@@ -215,10 +215,17 @@ function rowToAccount(row: AccountRow): Account {
 
 /** Satisfies IAccountRepository. No ORM — plain parameterised SQL against the accounts table (see migrations/001_create_accounts.sql). */
 export class PostgresAccountRepository implements IAccountRepository {
-  constructor(private readonly pool: Pool) {}
+  constructor(private readonly pool: Pool | PoolClient) {}
 
   async findById(id: AccountId): Promise<Account | null> {
     const { rows } = await this.pool.query<AccountRow>("SELECT * FROM accounts WHERE id = $1", [id]);
+    const [row] = rows;
+    return row ? rowToAccount(row) : null;
+  }
+
+  /** Transaction-scoped read used before modifying an aggregate that can receive concurrent relationship updates. */
+  async findByIdForUpdate(id: AccountId): Promise<Account | null> {
+    const { rows } = await this.pool.query<AccountRow>("SELECT * FROM accounts WHERE id = $1 FOR UPDATE", [id]);
     const [row] = rows;
     return row ? rowToAccount(row) : null;
   }

@@ -13,7 +13,7 @@ import {
   SignalOrigin,
   SignalType,
 } from "@pulse-brazil/domain";
-import type { Pool } from "@neondatabase/serverless";
+import type { Pool, PoolClient } from "@neondatabase/serverless";
 
 interface EvidenceReferenceJson {
   kind: string;
@@ -83,7 +83,7 @@ function rowToSignal(row: SignalRow): Signal {
 
 /** Satisfies ISignalRepository. No ORM — plain parameterised SQL against the signals table (see migrations/002_create_signals.sql). */
 export class PostgresSignalRepository implements ISignalRepository {
-  constructor(private readonly pool: Pool) {}
+  constructor(private readonly pool: Pool | PoolClient) {}
 
   async findById(id: SignalId): Promise<Signal | null> {
     const { rows } = await this.pool.query<SignalRow>("SELECT * FROM signals WHERE id = $1", [id]);

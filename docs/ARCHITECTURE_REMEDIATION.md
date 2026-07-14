@@ -14,8 +14,8 @@ npm run verify
 
 ## Ordered bullets
 
-1. **Safety baseline** — establish tests for every package, restore a clean typecheck, and provide one verification command.
-2. **Transactional signal creation** — add a unit-of-work boundary and make Signal creation plus Account linkage atomic.
+1. **Safety baseline** — complete (`33036ab`). Tests cover every package, strict typechecking is clean, and `npm run verify` is the shared gate.
+2. **Transactional signal creation** — complete. The application owns a unit-of-work boundary; Postgres implements commit/rollback; Account rows are locked in stable order; Signal and mirrored Account links succeed or fail atomically.
 3. **Canonical Account–Signal relationship** — replace mirrored JSON arrays with one relational relationship model.
 4. **Canonical temperature state** — make assessment history authoritative and derive current temperature as a projection.
 5. **Canonical location model** — make one location object authoritative and remove Account/LocationRecord write-through copies.

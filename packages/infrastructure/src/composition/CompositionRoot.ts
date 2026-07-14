@@ -44,6 +44,7 @@ import { PostgresSignalRepository } from "../adapters/PostgresSignalRepository.j
 import { PostgresTemperatureAssessmentRepository } from "../adapters/PostgresTemperatureAssessmentRepository.js";
 import { UlidIdGenerator } from "../adapters/UlidIdGenerator.js";
 import { createPool } from "../db/pool.js";
+import { PostgresUnitOfWork } from "../db/PostgresUnitOfWork.js";
 
 export interface CompositionRootConfig {
   databaseUrl: string;
@@ -106,6 +107,7 @@ export class CompositionRoot {
     const deals = new PostgresDealRepository(this.pool);
     const accountCountSnapshots = new PostgresAccountCountSnapshotRepository(this.pool);
     const marketResearchLog = new PostgresMarketResearchLogRepository(this.pool);
+    const unitOfWork = new PostgresUnitOfWork(this.pool);
 
     const idGenerator = new UlidIdGenerator();
     const geocoder = new GeocoderAdapter(config.googleMapsApiKey);
@@ -120,7 +122,7 @@ export class CompositionRoot {
     this.updateAccountTemperature = new UpdateAccountTemperature(accounts, temperatureAssessments, idGenerator);
     this.resolveAccountCoordinate = new ResolveAccountCoordinate(accounts, geocoder);
     this.listAccountsWithCoordinates = new ListAccountsWithCoordinates(accounts, deals, documents);
-    this.createSignal = new CreateSignal(signals, accounts, idGenerator);
+    this.createSignal = new CreateSignal(unitOfWork, idGenerator);
     this.listSignalsForAccount = new ListSignalsForAccount(signals);
     this.listRecentSignals = new ListRecentSignals(signals);
     this.deleteAllSignals = new DeleteAllSignals(signals);
