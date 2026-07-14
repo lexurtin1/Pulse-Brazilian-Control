@@ -24,15 +24,59 @@ export function valueToScaleT(value: number): number {
   return Math.min(1, Math.max(0, t));
 }
 
-// Stylized, not to-scale, extrusion — like any spike-map convention, real
-// deal values would be invisible at Brazil-country scale if drawn literally.
-// Chosen to read clearly at the app's default whole-Brazil camera view.
-export const TOWER_MIN_HEIGHT_METERS = 15_000;
-export const TOWER_MAX_HEIGHT_METERS = 250_000;
+// Tower geometry is a fraction of the CAMERA'S ALTITUDE, not a fixed number of
+// metres. The camera ranges from ~4,000km (whole Brazil) down to 100m, and no
+// constant metre height survives that range: an earlier version used a fixed
+// 15–250km, which was an invisible speck when zoomed out and swallowed the
+// viewport when zoomed in. Sizing off altitude gives every tower a constant
+// share of the screen at every zoom.
+//
+// Crucially the scale factor is GLOBAL (one camera altitude, shared by every
+// tower on screen) rather than per-tower distance-to-camera. That keeps heights
+// directly comparable — a taller tower is always a bigger deal — and leaves
+// normal perspective foreshortening intact in a tilted view. Scaling each tower
+// by its own distance would hold every tower at an identical pixel height and
+// thereby destroy the very encoding the height exists to carry.
+export const TOWER_MIN_HEIGHT_ALTITUDE_RATIO = 0.02;
+export const TOWER_MAX_HEIGHT_ALTITUDE_RATIO = 0.18;
 
-export function valueToTowerHeightMeters(value: number): number {
+// Accounts with no open pipeline are not absent from Tower view and are not
+// flat dots either — they are a uniform, deliberately stubby tower, short
+// enough that it can never be mistaken for even the smallest real deal (whose
+// floor is TOWER_MIN_HEIGHT_ALTITUDE_RATIO, 2.5x taller).
+export const TOWER_STUB_HEIGHT_ALTITUDE_RATIO = 0.008;
+
+export const TOWER_RADIUS_ALTITUDE_RATIO = 0.012;
+
+// Rails against degenerate geometry at the extremes of the zoom range only —
+// the ratio above governs everywhere a user actually looks from.
+const TOWER_RADIUS_MIN_METERS = 150;
+const TOWER_RADIUS_MAX_METERS = 45_000;
+const SCALE_ALTITUDE_MIN_METERS = 1_000;
+const SCALE_ALTITUDE_MAX_METERS = 6_000_000;
+
+/**
+ * The altitude towers are sized against. Clamped so the cinematic fly-in from
+ * 25,000km (see SPACE_ALTITUDE_METERS) doesn't briefly extrude towers thousands
+ * of kilometres into space, and so the 100m zoom floor doesn't collapse them.
+ */
+export function towerScaleAltitudeMeters(cameraAltitudeMeters: number): number {
+  return Math.min(SCALE_ALTITUDE_MAX_METERS, Math.max(SCALE_ALTITUDE_MIN_METERS, cameraAltitudeMeters));
+}
+
+export function valueToTowerHeightMeters(value: number, scaleAltitudeMeters: number): number {
   const t = valueToScaleT(value);
-  return TOWER_MIN_HEIGHT_METERS + t * (TOWER_MAX_HEIGHT_METERS - TOWER_MIN_HEIGHT_METERS);
+  const ratio = TOWER_MIN_HEIGHT_ALTITUDE_RATIO + t * (TOWER_MAX_HEIGHT_ALTITUDE_RATIO - TOWER_MIN_HEIGHT_ALTITUDE_RATIO);
+  return scaleAltitudeMeters * ratio;
+}
+
+export function stubTowerHeightMeters(scaleAltitudeMeters: number): number {
+  return scaleAltitudeMeters * TOWER_STUB_HEIGHT_ALTITUDE_RATIO;
+}
+
+export function towerRadiusMeters(scaleAltitudeMeters: number): number {
+  const radius = scaleAltitudeMeters * TOWER_RADIUS_ALTITUDE_RATIO;
+  return Math.min(TOWER_RADIUS_MAX_METERS, Math.max(TOWER_RADIUS_MIN_METERS, radius));
 }
 
 // ── OKLCH color interpolation ────────────────────────────────────────────────
