@@ -117,11 +117,11 @@ export class CompositionRoot {
     this.buildContextBundle = new BuildContextBundle(notes, documents, signals, contextBundles, idGenerator);
 
     this.createAccount = new CreateAccount(accounts, idGenerator);
-    this.listAccounts = new ListAccounts(accounts);
+    this.listAccounts = new ListAccounts(accounts, temperatureAssessments);
     this.getAccountDetail = new GetAccountDetail(accounts, signals, temperatureAssessments, insights, accountResearchBriefs, deals, documents);
     this.updateAccountTemperature = new UpdateAccountTemperature(accounts, temperatureAssessments, idGenerator);
     this.resolveAccountCoordinate = new ResolveAccountCoordinate(accounts, geocoder);
-    this.listAccountsWithCoordinates = new ListAccountsWithCoordinates(accounts, deals, documents);
+    this.listAccountsWithCoordinates = new ListAccountsWithCoordinates(accounts, deals, documents, temperatureAssessments);
     this.createSignal = new CreateSignal(unitOfWork, idGenerator);
     this.listSignalsForAccount = new ListSignalsForAccount(signals);
     this.listRecentSignals = new ListRecentSignals(signals);

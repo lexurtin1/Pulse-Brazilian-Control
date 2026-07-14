@@ -28,6 +28,8 @@ describe("PostgresAccountRepository", () => {
 
     const [sql, values] = query.mock.calls[0]!;
     expect(sql).not.toContain("linked_signal_ids");
-    expect(values).toHaveLength(14);
+    expect(sql).not.toContain("latest_temperature");
+    expect(sql).not.toContain("temperature_band");
+    expect(values).toHaveLength(12);
   });
 });

@@ -6,7 +6,6 @@ import { AccountStatus } from "./AccountStatus.js";
 import { AccountType } from "./AccountType.js";
 import { ClientType } from "./ClientType.js";
 import { OfficeLocation } from "./OfficeLocation.js";
-import { TemperatureAssessment } from "./TemperatureAssessment.js";
 
 interface AccountProps {
   id: AccountId;
@@ -16,7 +15,6 @@ interface AccountProps {
   geographicScope: GeographicScope;
   officeLocations: readonly OfficeLocation[];
   linkedThemeIds: readonly ThemeId[];
-  latestTemperature?: TemperatureAssessment;
   externalReferences: readonly ExternalReference[];
   /**
    * Real Salesforce account-export metadata — see ClientType's doc comment
@@ -46,8 +44,8 @@ function assertUniqueExternalSystems(refs: readonly ExternalReference[]): void {
 
 /**
  * The durable business entity for a Brazilian capital-markets account —
- * the aggregate root that offices, current temperature, theme linkage, and
- * external identifiers hang off of. Account–Signal relationships have their
+ * the aggregate root that offices, theme linkage, and external identifiers
+ * hang off of. Temperature history and Account–Signal relationships have their
  * own canonical relation and are not mirrored into this aggregate. Not a CRM mirror:
  * Salesforce is one external reference among possibly several, not the
  * account's identity.
@@ -63,7 +61,6 @@ export class Account {
     geographicScope: GeographicScope;
     officeLocations?: readonly OfficeLocation[];
     linkedThemeIds?: readonly ThemeId[];
-    latestTemperature?: TemperatureAssessment;
     externalReferences?: readonly ExternalReference[];
     clientTypes?: readonly ClientType[];
     accountOwner?: string;
@@ -78,10 +75,6 @@ export class Account {
     assertOnePrimaryOffice(officeLocations);
     assertUniqueExternalSystems(externalReferences);
 
-    if (params.latestTemperature && params.latestTemperature.accountId !== params.id) {
-      throw new InvariantViolationError("Account", "latestTemperature must belong to this account");
-    }
-
     return new Account({
       id: params.id,
       name: params.name.trim(),
@@ -90,7 +83,6 @@ export class Account {
       geographicScope: params.geographicScope,
       officeLocations,
       linkedThemeIds: params.linkedThemeIds ?? [],
-      latestTemperature: params.latestTemperature,
       externalReferences,
       clientTypes: params.clientTypes ?? [],
       accountOwner: params.accountOwner?.trim() || undefined,
@@ -122,9 +114,6 @@ export class Account {
   }
   get linkedThemeIds(): readonly ThemeId[] {
     return this.props.linkedThemeIds;
-  }
-  get latestTemperature(): TemperatureAssessment | undefined {
-    return this.props.latestTemperature;
   }
   get externalReferences(): readonly ExternalReference[] {
     return this.props.externalReferences;
@@ -170,14 +159,6 @@ export class Account {
       createdCohortYear: profile.createdCohortYear?.trim() || undefined,
       openOpportunityCount: profile.openOpportunityCount,
     });
-  }
-
-  /** Records a new temperature read as the account's current snapshot. The full history is owned outside this aggregate. */
-  applyTemperatureAssessment(assessment: TemperatureAssessment): Account {
-    if (assessment.accountId !== this.props.id) {
-      throw new InvariantViolationError("Account", "assessment.accountId must match this account");
-    }
-    return new Account({ ...this.props, latestTemperature: assessment });
   }
 
   linkTheme(themeId: ThemeId): Account {

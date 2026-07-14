@@ -17,7 +17,7 @@ npm run verify
 1. **Safety baseline** — complete (`33036ab`). Tests cover every package, strict typechecking is clean, and `npm run verify` is the shared gate.
 2. **Transactional signal creation** — complete. The application owns a unit-of-work boundary; Postgres implements commit/rollback; Account rows are locked in stable order; Signal and mirrored Account links succeed or fail atomically.
 3. **Canonical Account–Signal relationship** — complete. `account_signals` is the sole persisted relationship, backfilled from the authoritative Signal side; both JSON copies and Account-side mutation behavior are removed.
-4. **Canonical temperature state** — make assessment history authoritative and derive current temperature as a projection.
+4. **Canonical temperature state** — complete. Immutable assessment history is the sole persisted fact; current temperature is a deterministic bulk/read projection, and both Account-side copies are removed after a defensive backfill.
 5. **Canonical location model** — make one location object authoritative and remove Account/LocationRecord write-through copies.
 6. **Transactional ingestion** — make imports atomic or explicitly resumable and idempotent.
 7. **Durable source artifacts** — retain immutable, content-addressed source material for evidence reconstruction.
