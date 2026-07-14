@@ -85,6 +85,18 @@ const ACCOUNT_PIN_OUTLINE_WIDTH = 3;
 const ACCOUNT_PIN_SELECTED_OUTLINE_WIDTH = 4;
 const LOCATION_PIN_OUTLINE_WIDTH = 3;
 
+// Pins sit on the ellipsoid, NOT clamped to terrain — do not "fix" this back to
+// CLAMP_TO_GROUND. Clamping makes Cesium sample world terrain for each pin's
+// height, and that sample is recomputed as terrain tiles stream in and swap LOD
+// during a zoom or pan, so the pin's anchor keeps moving underneath it. That is
+// what read as dots flickering, popping and jumping around.
+//
+// Clamping bought nothing anyway: disableDepthTestDistance is POSITIVE_INFINITY
+// on every pin, so they already draw on top of all geometry regardless of depth.
+// We were paying for a terrain height we then deliberately ignored. On the
+// ellipsoid the anchor is a fixed number that no tile load can move.
+const PIN_HEIGHT_REFERENCE = Cesium.HeightReference.NONE;
+
 // "Feel alive": every pin gently breathes (size oscillation) on a loop
 // rather than sitting dead-still. The selected pin pulses harder/faster so
 // it still reads as distinct now that pulsing isn't unique to it. Each pin
@@ -464,7 +476,7 @@ export function CesiumGlobe({
             outlineColor: (selected ? activeColor : surfaceColor).withAlpha(alpha),
             outlineWidth: selected ? ACCOUNT_PIN_SELECTED_OUTLINE_WIDTH : ACCOUNT_PIN_OUTLINE_WIDTH,
             disableDepthTestDistance: Number.POSITIVE_INFINITY,
-            heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+            heightReference: PIN_HEIGHT_REFERENCE,
           },
         });
       }
@@ -590,7 +602,7 @@ export function CesiumGlobe({
             outlineColor: surfaceColor,
             outlineWidth: LOCATION_PIN_OUTLINE_WIDTH,
             disableDepthTestDistance: Number.POSITIVE_INFINITY,
-            heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+            heightReference: PIN_HEIGHT_REFERENCE,
           },
         });
       }
