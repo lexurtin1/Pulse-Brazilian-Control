@@ -1,7 +1,7 @@
 import { InvariantViolationError } from "../shared/errors.js";
 import { ExternalReference } from "../shared/ExternalReference.js";
 import { GeographicScope } from "../shared/GeographicScope.js";
-import type { AccountId, SignalId, ThemeId } from "../shared/identifiers.js";
+import type { AccountId, ThemeId } from "../shared/identifiers.js";
 import { AccountStatus } from "./AccountStatus.js";
 import { AccountType } from "./AccountType.js";
 import { ClientType } from "./ClientType.js";
@@ -16,12 +16,6 @@ interface AccountProps {
   geographicScope: GeographicScope;
   officeLocations: readonly OfficeLocation[];
   linkedThemeIds: readonly ThemeId[];
-  /**
-   * Denormalized read convenience. Signal.linkedAccountIds is the
-   * authoritative link direction; the application layer is responsible for
-   * keeping this list in sync when signals are linked or unlinked.
-   */
-  linkedSignalIds: readonly SignalId[];
   latestTemperature?: TemperatureAssessment;
   externalReferences: readonly ExternalReference[];
   /**
@@ -52,8 +46,9 @@ function assertUniqueExternalSystems(refs: readonly ExternalReference[]): void {
 
 /**
  * The durable business entity for a Brazilian capital-markets account —
- * the aggregate root that offices, temperature history, theme/signal
- * linkage, and external identifiers all hang off of. Not a CRM mirror:
+ * the aggregate root that offices, current temperature, theme linkage, and
+ * external identifiers hang off of. Account–Signal relationships have their
+ * own canonical relation and are not mirrored into this aggregate. Not a CRM mirror:
  * Salesforce is one external reference among possibly several, not the
  * account's identity.
  */
@@ -68,7 +63,6 @@ export class Account {
     geographicScope: GeographicScope;
     officeLocations?: readonly OfficeLocation[];
     linkedThemeIds?: readonly ThemeId[];
-    linkedSignalIds?: readonly SignalId[];
     latestTemperature?: TemperatureAssessment;
     externalReferences?: readonly ExternalReference[];
     clientTypes?: readonly ClientType[];
@@ -96,7 +90,6 @@ export class Account {
       geographicScope: params.geographicScope,
       officeLocations,
       linkedThemeIds: params.linkedThemeIds ?? [],
-      linkedSignalIds: params.linkedSignalIds ?? [],
       latestTemperature: params.latestTemperature,
       externalReferences,
       clientTypes: params.clientTypes ?? [],
@@ -129,9 +122,6 @@ export class Account {
   }
   get linkedThemeIds(): readonly ThemeId[] {
     return this.props.linkedThemeIds;
-  }
-  get linkedSignalIds(): readonly SignalId[] {
-    return this.props.linkedSignalIds;
   }
   get latestTemperature(): TemperatureAssessment | undefined {
     return this.props.latestTemperature;
@@ -202,15 +192,4 @@ export class Account {
     });
   }
 
-  linkSignal(signalId: SignalId): Account {
-    if (this.props.linkedSignalIds.includes(signalId)) return this;
-    return new Account({ ...this.props, linkedSignalIds: [...this.props.linkedSignalIds, signalId] });
-  }
-
-  unlinkSignal(signalId: SignalId): Account {
-    return new Account({
-      ...this.props,
-      linkedSignalIds: this.props.linkedSignalIds.filter((id) => id !== signalId),
-    });
-  }
 }

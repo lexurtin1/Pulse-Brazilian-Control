@@ -41,11 +41,8 @@ export interface CreateSignalCommand {
 
 /**
  * Captures a new piece of market or account intelligence. Verifies every
- * referenced account actually exists before the signal is persisted, and
- * updates each account's linkedSignalIds — Account.linkSignal exists
- * specifically because Signal is the authoritative link direction and
- * Account's copy is a denormalized read convenience this use case must
- * keep in sync.
+ * referenced account exists before the signal and its canonical relational
+ * links are persisted atomically.
  */
 export class CreateSignal {
   constructor(
@@ -79,22 +76,17 @@ export class CreateSignal {
     });
 
     await this.unitOfWork.execute(async ({ accounts, signals }) => {
-      // Lock in a stable order so concurrent multi-account signals cannot
-      // deadlock by requesting the same accounts in opposite orders.
+      // Protect referenced accounts in stable order so concurrent
+      // multi-account signals cannot deadlock in opposite account order.
       const accountIdsToLock = [...linkedAccountIds].sort();
-      const linkedAccounts = [];
       for (const accountId of accountIdsToLock) {
-        const account = await accounts.findByIdForUpdate(accountId);
+        const account = await accounts.findByIdForLink(accountId);
         if (!account) {
           throw new NotFoundError("Account", accountId);
         }
-        linkedAccounts.push(account);
       }
 
       await signals.save(signal);
-      for (const account of linkedAccounts) {
-        await accounts.save(account.linkSignal(signal.id));
-      }
     });
 
     return toSignalDto(signal);

@@ -5,10 +5,9 @@ import { createPool } from "./pool.js";
  * per-account Perplexity sweep (source = 'WebResearch'), including ones that
  * did find real account info — the sweep now runs 6 fixed market-wide
  * queries instead, and the old account-specific rows (many of them just
- * "nothing was found" noise) have no place in that model. Accounts'
- * linked_signal_ids arrays are left as-is; nothing dereferences signals
- * through that array (PostgresSignalRepository.findByAccountId queries the
- * signals table directly), so any now-dangling IDs are harmless.
+ * "nothing was found" noise) have no place in that model. Canonical
+ * account_signals rows are removed automatically by their cascading foreign
+ * key when a Signal is deleted.
  *
  * Defaults to a dry run (just counts and prints matching rows). Pass
  * --confirm to actually delete.

@@ -7,7 +7,6 @@ import {
   AccountType,
   asAccountId,
   asOfficeLocationId,
-  asSignalId,
   asTemperatureAssessmentId,
   asThemeId,
   ClientType,
@@ -71,7 +70,6 @@ interface AccountRow {
   geographic_scope: { countryCode: string; region: string | null; city: string | null };
   office_locations: OfficeLocationJson[];
   linked_theme_ids: string[];
-  linked_signal_ids: string[];
   latest_temperature: TemperatureAssessmentJson | null;
   external_references: ExternalReferenceJson[];
   client_types: string[];
@@ -200,7 +198,6 @@ function rowToAccount(row: AccountRow): Account {
       }),
       officeLocations: row.office_locations.map(officeLocationFromJson),
       linkedThemeIds: row.linked_theme_ids.map(asThemeId),
-      linkedSignalIds: row.linked_signal_ids.map(asSignalId),
       latestTemperature: row.latest_temperature ? temperatureAssessmentFromJson(row.latest_temperature) : undefined,
       externalReferences: row.external_references.map(externalReferenceFromJson),
       clientTypes: row.client_types.map((value) => value as ClientType),
@@ -223,9 +220,9 @@ export class PostgresAccountRepository implements IAccountRepository {
     return row ? rowToAccount(row) : null;
   }
 
-  /** Transaction-scoped read used before modifying an aggregate that can receive concurrent relationship updates. */
-  async findByIdForUpdate(id: AccountId): Promise<Account | null> {
-    const { rows } = await this.pool.query<AccountRow>("SELECT * FROM accounts WHERE id = $1 FOR UPDATE", [id]);
+  /** Prevents concurrent Account deletion while a transaction creates a relationship to it. */
+  async findByIdForLink(id: AccountId): Promise<Account | null> {
+    const { rows } = await this.pool.query<AccountRow>("SELECT * FROM accounts WHERE id = $1 FOR KEY SHARE", [id]);
     const [row] = rows;
     return row ? rowToAccount(row) : null;
   }
@@ -253,10 +250,10 @@ export class PostgresAccountRepository implements IAccountRepository {
       `
       INSERT INTO accounts (
         id, name, account_type, status, geographic_scope, office_locations,
-        linked_theme_ids, linked_signal_ids, latest_temperature, temperature_band,
+        linked_theme_ids, latest_temperature, temperature_band,
         external_references, client_types, account_owner, created_cohort_year,
         open_opportunity_count, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, now())
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, now())
       ON CONFLICT (id) DO UPDATE SET
         name = EXCLUDED.name,
         account_type = EXCLUDED.account_type,
@@ -264,7 +261,6 @@ export class PostgresAccountRepository implements IAccountRepository {
         geographic_scope = EXCLUDED.geographic_scope,
         office_locations = EXCLUDED.office_locations,
         linked_theme_ids = EXCLUDED.linked_theme_ids,
-        linked_signal_ids = EXCLUDED.linked_signal_ids,
         latest_temperature = EXCLUDED.latest_temperature,
         temperature_band = EXCLUDED.temperature_band,
         external_references = EXCLUDED.external_references,
@@ -286,7 +282,6 @@ export class PostgresAccountRepository implements IAccountRepository {
         }),
         JSON.stringify(account.officeLocations.map(officeLocationToJson)),
         JSON.stringify(account.linkedThemeIds),
-        JSON.stringify(account.linkedSignalIds),
         account.latestTemperature ? JSON.stringify(temperatureAssessmentToJson(account.latestTemperature)) : null,
         account.latestTemperature?.band ?? null,
         JSON.stringify(account.externalReferences.map(externalReferenceToJson)),

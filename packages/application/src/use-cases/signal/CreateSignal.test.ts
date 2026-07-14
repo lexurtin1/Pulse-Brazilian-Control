@@ -29,16 +29,12 @@ describe("CreateSignal", () => {
       ["account-b", account("account-b")],
     ]);
     const lockOrder: string[] = [];
-    const savedAccounts: Account[] = [];
     const saveSignal = vi.fn();
     const context: UnitOfWorkContext = {
       accounts: {
-        findByIdForUpdate: async (id) => {
+        findByIdForLink: async (id) => {
           lockOrder.push(id);
           return accounts.get(id) ?? null;
-        },
-        save: async (value) => {
-          savedAccounts.push(value);
         },
       },
       signals: { save: saveSignal },
@@ -65,6 +61,6 @@ describe("CreateSignal", () => {
     expect(executeSpy).toHaveBeenCalledOnce();
     expect(lockOrder).toEqual(["account-a", "account-b"]);
     expect(saveSignal).toHaveBeenCalledOnce();
-    expect(savedAccounts.map((value) => value.linkedSignalIds)).toEqual([["signal-1"], ["signal-1"]]);
+    expect(saveSignal.mock.calls[0]?.[0].linkedAccountIds).toEqual(["account-b", "account-a"]);
   });
 });

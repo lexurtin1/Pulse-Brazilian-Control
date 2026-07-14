@@ -2,9 +2,8 @@ import type { Account, AccountId, Signal } from "@pulse-brazil/domain";
 
 /** Account operations that must participate in the current database transaction. */
 export interface ITransactionalAccountRepository {
-  /** Locks the account until the transaction completes, preventing lost relationship updates. */
-  findByIdForUpdate(id: AccountId): Promise<Account | null>;
-  save(account: Account): Promise<void>;
+  /** Protects an Account referenced by a new relationship from concurrent deletion. */
+  findByIdForLink(id: AccountId): Promise<Account | null>;
 }
 
 /** Repositories scoped to one atomic application operation. */
