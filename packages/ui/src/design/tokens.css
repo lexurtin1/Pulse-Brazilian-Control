@@ -42,6 +42,14 @@
   --color-temp-cold: #b0afa9;
   --color-temp-cold-bg: #eceae5;
 
+  /* Status palette (dataviz skill, fixed — not restepped between themes).
+     Used by the header freshness ring. On the light surface "warning" is
+     sub-3:1 by design (documented WARN, not a bug) — every use pairs it
+     with an icon/label, never color alone. */
+  --color-status-good: #0ca30c;
+  --color-status-warning: #fab219;
+  --color-status-critical: #d03b3b;
+
   /* Client-type categorical palette — one mark color per real ClientType enum
      value (map pins, legend swatches, and small identity dots elsewhere in
      the UI). Built with the dataviz skill's categorical method: 7 hues,
@@ -70,6 +78,16 @@
   --color-calastone-blue: #1f6fa8;
   --color-calastone-teal: #1f8288;
   --color-calastone-green: #4a8038;
+
+  /* Pipeline value ramp — map Tower view's height+color encoding (see
+     grilling session). Diverging structure (two hues + neutral gray
+     midpoint, per the dataviz skill), reusing already-validated tokens
+     rather than inventing new hex: low = --color-calastone-teal, high =
+     --color-temp-warm (already cleared 4.5:1 as label text). Interpolated
+     in OKLCH at runtime — see utils/pipelineValueScale.ts. */
+  --color-value-low: #1f8288;
+  --color-value-mid: #8a8f92;
+  --color-value-high: #82591c;
 
   /* Signal-type chip colors — one pair per real SignalType enum value. The
      6 market-sweep topics (RegulatoryChange, CompetitiveIntelligence,
@@ -209,6 +227,12 @@
     --color-temp-cold: #6e6a62;
     --color-temp-cold-bg: #2a2823;
 
+    /* Status palette — same fixed steps as light mode; all three clear 3:1
+       on the dark surface without restepping (dataviz skill palette.md). */
+    --color-status-good: #0ca30c;
+    --color-status-warning: #fab219;
+    --color-status-critical: #d03b3b;
+
     /* Client-type categorical palette — same seven hues, restepped for the
        dark surface and revalidated (all-pairs CVD + >=3:1 contrast). */
     --color-client-distributor: #0098be;
@@ -223,6 +247,11 @@
     --color-calastone-blue: #4793ce;
     --color-calastone-teal: #39969c;
     --color-calastone-green: #60974f;
+
+    /* Pipeline value ramp — same poles as --color-calastone-teal/--color-temp-warm's dark steps */
+    --color-value-low: #39969c;
+    --color-value-mid: #9a9890;
+    --color-value-high: #d9a34a;
 
     /* Signal-type chip colors — same distinct hue families as light mode,
        restepped bright-text/dark-bg for the dark surface. */

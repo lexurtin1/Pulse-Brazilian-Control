@@ -8,6 +8,7 @@ import {
   GenerateInsight,
   GetAccountDetail,
   GetActiveAccountsSummary,
+  GetDashboardFreshness,
   GetPipelineSummary,
   GetTopOpenDeals,
   ImportLocationCsv,
@@ -37,6 +38,7 @@ import { PostgresDealRepository } from "../adapters/PostgresDealRepository.js";
 import { PostgresDocumentRepository } from "../adapters/PostgresDocumentRepository.js";
 import { PostgresInsightRepository } from "../adapters/PostgresInsightRepository.js";
 import { PostgresLocationRecordRepository } from "../adapters/PostgresLocationRecordRepository.js";
+import { PostgresMarketResearchLogRepository } from "../adapters/PostgresMarketResearchLogRepository.js";
 import { PostgresNoteRepository } from "../adapters/PostgresNoteRepository.js";
 import { PostgresSignalRepository } from "../adapters/PostgresSignalRepository.js";
 import { PostgresTemperatureAssessmentRepository } from "../adapters/PostgresTemperatureAssessmentRepository.js";
@@ -87,6 +89,7 @@ export class CompositionRoot {
   readonly getTopOpenDeals: GetTopOpenDeals;
   readonly getActiveAccountsSummary: GetActiveAccountsSummary;
   readonly reconcileSalesforceAccounts: ReconcileSalesforceAccounts;
+  readonly getDashboardFreshness: GetDashboardFreshness;
 
   constructor(config: CompositionRootConfig) {
     this.pool = createPool(config.databaseUrl);
@@ -102,6 +105,7 @@ export class CompositionRoot {
     const locationRecords = new PostgresLocationRecordRepository(this.pool);
     const deals = new PostgresDealRepository(this.pool);
     const accountCountSnapshots = new PostgresAccountCountSnapshotRepository(this.pool);
+    const marketResearchLog = new PostgresMarketResearchLogRepository(this.pool);
 
     const idGenerator = new UlidIdGenerator();
     const geocoder = new GeocoderAdapter(config.googleMapsApiKey);
@@ -112,10 +116,10 @@ export class CompositionRoot {
 
     this.createAccount = new CreateAccount(accounts, idGenerator);
     this.listAccounts = new ListAccounts(accounts);
-    this.getAccountDetail = new GetAccountDetail(accounts, signals, temperatureAssessments, insights, accountResearchBriefs);
+    this.getAccountDetail = new GetAccountDetail(accounts, signals, temperatureAssessments, insights, accountResearchBriefs, deals, documents);
     this.updateAccountTemperature = new UpdateAccountTemperature(accounts, temperatureAssessments, idGenerator);
     this.resolveAccountCoordinate = new ResolveAccountCoordinate(accounts, geocoder);
-    this.listAccountsWithCoordinates = new ListAccountsWithCoordinates(accounts);
+    this.listAccountsWithCoordinates = new ListAccountsWithCoordinates(accounts, deals, documents);
     this.createSignal = new CreateSignal(signals, accounts, idGenerator);
     this.listSignalsForAccount = new ListSignalsForAccount(signals);
     this.listRecentSignals = new ListRecentSignals(signals);
@@ -125,7 +129,7 @@ export class CompositionRoot {
     this.createNote = new CreateNote(notes, accounts, idGenerator);
     this.processDocumentUpload = new ProcessDocumentUpload(documents, accounts, claudeService, this.createSignal, idGenerator);
     this.generateInsight = new GenerateInsight(insights, claudeService, idGenerator, this.buildContextBundle);
-    this.runMarketResearchSweep = new RunMarketResearchSweep(signals, marketResearch, idGenerator);
+    this.runMarketResearchSweep = new RunMarketResearchSweep(signals, marketResearch, idGenerator, marketResearchLog);
     this.importLocationCsv = new ImportLocationCsv(locationRecords, documents, accounts, geocoder, idGenerator, accountCountSnapshots);
     this.listLocationRecordsForMap = new ListLocationRecordsForMap(locationRecords, accounts);
     this.createAccountFromLocationRecord = new CreateAccountFromLocationRecord(locationRecords, accounts, idGenerator);
@@ -134,6 +138,7 @@ export class CompositionRoot {
     this.getTopOpenDeals = new GetTopOpenDeals(deals, documents);
     this.getActiveAccountsSummary = new GetActiveAccountsSummary(accountCountSnapshots);
     this.reconcileSalesforceAccounts = new ReconcileSalesforceAccounts(accounts, idGenerator);
+    this.getDashboardFreshness = new GetDashboardFreshness(documents, marketResearchLog);
   }
 
   /** Closes the underlying pg Pool — call on graceful shutdown. */

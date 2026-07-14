@@ -4,6 +4,7 @@ import type { AccountDetailDto } from "@pulse-brazil/application";
 import { fetchAccountDetail } from "../../api/client";
 import { useDialogA11y } from "../../hooks/useDialogA11y";
 import { formatEnumLabel } from "../../utils/formatEnumLabel";
+import { formatCurrency } from "../../utils/formatNumbers";
 import { clientTypeColorVar, clientTypeLabel, primaryClientType } from "../../utils/clientType";
 import { InformationSweepSection } from "../InformationSweepSection/InformationSweepSection";
 import "./AccountDossier.css";
@@ -84,6 +85,21 @@ export function AccountDossier({ accountId, onClose }: AccountDossierProps) {
                 <span className="account-dossier__location">{state.detail.primaryLocation.city}</span>
               )}
             </div>
+
+            {state.detail.openPipelineValue > 0 && (
+              <section className="account-dossier__section">
+                <h3>Open pipeline</h3>
+                <p className="account-dossier__pipeline-value">{formatCurrency(state.detail.openPipelineValue)}</p>
+                <ul className="account-dossier__list">
+                  {state.detail.openDeals.map((deal) => (
+                    <li key={deal.id}>
+                      {deal.opportunityName} — {formatCurrency(deal.amount)}
+                      <span className="account-dossier__badge">{deal.stage}</span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
 
             <InformationSweepSection
               accountId={state.detail.id}

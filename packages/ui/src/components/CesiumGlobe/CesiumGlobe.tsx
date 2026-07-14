@@ -1,16 +1,28 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as Cesium from "cesium";
 import "cesium/Build/Cesium/Widgets/widgets.css";
 import type { AccountMapPinDto, LocationRecordMapPinDto } from "@pulse-brazil/application";
 import { clientTypeColorVar, primaryClientType } from "../../utils/clientType";
+import { formatCurrency } from "../../utils/formatNumbers";
+import { valueColorHex, valueToScaleT, valueToTowerHeightMeters } from "../../utils/pipelineValueScale";
 import "./CesiumGlobe.css";
+
+export type MapViewMode = "flat" | "tower";
 
 interface CesiumGlobeProps {
   pins: AccountMapPinDto[];
   locationPins?: LocationRecordMapPinDto[];
   selectedAccountId: string | null;
+  viewMode: MapViewMode;
   onSelectAccount?: (accountId: string) => void;
   onSelectLocationPin?: (pin: LocationRecordMapPinDto) => void;
+}
+
+interface HoverInfo {
+  name: string;
+  value: number;
+  x: number;
+  y: number;
 }
 
 // One fixed color per LocationRecordKind — mirrors the palette the 2D map
@@ -92,7 +104,10 @@ const MINIMUM_ZOOM_DISTANCE_METERS = 100;
 // entities added this way, not viewer.entities directly) so dense areas
 // collapse into a countable bubble instead of an unreadable pile of
 // overlapping pins. Location pins are the secondary layer and stay
-// uncluttered individual pins on viewer.entities.
+// uncluttered individual pins on viewer.entities. Tower-view polygons also
+// live directly on viewer.entities — Cesium's clustering only operates on
+// point/billboard/label graphics, not polygons, and with 44 real accounts
+// total there's no dense-overlap problem for towers to solve.
 const CLUSTER_PIXEL_RANGE = 60;
 const CLUSTER_MINIMUM_SIZE = 2;
 const CLUSTER_PIN_BASE_SIZE = 46;
@@ -101,6 +116,29 @@ const CLUSTER_PIN_OUTLINE_WIDTH = 4;
 // share (almost) the same coordinate still visibly zooms in, rather than
 // flying to a degenerate zero-size rectangle.
 const CLUSTER_ZOOM_PADDING_RADIANS = 0.002;
+
+// Tower view geometry. Footprint radius is deliberately fixed regardless of
+// value — only height and color encode the deal size, per the "not larger
+// circles" decision. A stylized, exaggerated scale (like any spike-map
+// convention): real deal values would be an invisible bump at this radius.
+const TOWER_HEX_RADIUS_METERS = 12_000;
+const TOWER_TRANSITION_DURATION_MS = 550;
+
+function easeOutCubic(t: number): number {
+  return 1 - Math.pow(1 - t, 3);
+}
+
+/** Six ground-level corners of a regular hexagon centered on `center`, in the local east-north-up frame so the shape sits flat on the earth's surface regardless of where on the globe it is. */
+function hexagonPositions(center: Cesium.Cartesian3, radiusMeters: number): Cesium.Cartesian3[] {
+  const enuMatrix = Cesium.Transforms.eastNorthUpToFixedFrame(center);
+  const positions: Cesium.Cartesian3[] = [];
+  for (let i = 0; i < 6; i++) {
+    const angle = (Math.PI / 3) * i;
+    const local = new Cesium.Cartesian3(radiusMeters * Math.cos(angle), radiusMeters * Math.sin(angle), 0);
+    positions.push(Cesium.Matrix4.multiplyByPoint(enuMatrix, local, new Cesium.Cartesian3()));
+  }
+  return positions;
+}
 
 function rectangleForEntities(viewer: Cesium.Viewer, entities: Cesium.Entity[]): Cesium.Rectangle | null {
   const time = viewer.clock.currentTime;
@@ -128,7 +166,14 @@ function rectangleForEntities(viewer: Cesium.Viewer, entities: Cesium.Entity[]):
   return new Cesium.Rectangle(west, south, east, north);
 }
 
-export function CesiumGlobe({ pins, locationPins = [], selectedAccountId, onSelectAccount, onSelectLocationPin }: CesiumGlobeProps) {
+export function CesiumGlobe({
+  pins,
+  locationPins = [],
+  selectedAccountId,
+  viewMode,
+  onSelectAccount,
+  onSelectLocationPin,
+}: CesiumGlobeProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<Cesium.Viewer | null>(null);
   const accountsDataSourceRef = useRef<Cesium.CustomDataSource | null>(null);
@@ -139,6 +184,12 @@ export function CesiumGlobe({ pins, locationPins = [], selectedAccountId, onSele
   onSelectLocationPinRef.current = onSelectLocationPin;
   const locationPinsRef = useRef(locationPins);
   locationPinsRef.current = locationPins;
+  const pinsRef = useRef(pins);
+  pinsRef.current = pins;
+  // 0 = fully Flat, 1 = fully Tower — the single source of truth the render
+  // effect animates every frame; viewMode only supplies the *target*.
+  const progressRef = useRef(viewMode === "tower" ? 1 : 0);
+  const [hoverInfo, setHoverInfo] = useState<HoverInfo | null>(null);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -265,6 +316,21 @@ export function CesiumGlobe({ pins, locationPins = [], selectedAccountId, onSele
       }
     }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
 
+    // Hover tooltip — account name + open pipeline value, in either view
+    // mode. Cesium's canvas has no native title/hover affordance of its own.
+    viewer.screenSpaceEventHandler.setInputAction((movement: Cesium.ScreenSpaceEventHandler.MotionEvent) => {
+      const picked = viewer.scene.pick(movement.endPosition);
+      const accountId = !Array.isArray(picked?.id) ? picked?.id?.properties?.accountId?.getValue() : undefined;
+      if (accountId) {
+        const pin = pinsRef.current.find((p) => p.id === accountId);
+        if (pin) {
+          setHoverInfo({ name: pin.name, value: pin.openPipelineValue, x: movement.endPosition.x, y: movement.endPosition.y });
+          return;
+        }
+      }
+      setHoverInfo(null);
+    }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
+
     viewerRef.current = viewer;
 
     const resizeObserver = new ResizeObserver(() => viewer.resize());
@@ -279,69 +345,172 @@ export function CesiumGlobe({ pins, locationPins = [], selectedAccountId, onSele
     };
   }, []);
 
-  // Account + location-record pins as Cesium point Entities, colored the
-  // same as the rest of the dashboard. Account pins go into the clustered
-  // accounts DataSource; location pins stay directly on viewer.entities and
-  // never cluster. Every pin holds a fixed pixelSize (no distance scaling)
-  // and pulses continuously via a time-based CallbackProperty.
+  // Account + location-record pins as Cesium entities, colored the same as
+  // the rest of the dashboard. Account pins go into the clustered accounts
+  // DataSource (Flat view, and any zero-pipeline account regardless of
+  // mode); location pins and Tower-view polygons stay directly on
+  // viewer.entities and never cluster. Switching modes animates every
+  // account's tower height between the two states in lockstep (progressRef)
+  // rather than snapping instantly, fading the flat dot out as its tower
+  // fades/grows in (and back on the return trip).
   useEffect(() => {
     const viewer = viewerRef.current;
     const accountsDataSource = accountsDataSourceRef.current;
     if (!viewer || !accountsDataSource) return;
 
-    accountsDataSource.entities.removeAll();
-    viewer.entities.removeAll();
-    clusterPulseTargetsRef.current.clear();
-
     const surfaceColor = Cesium.Color.fromCssColorString(cssColorString("--color-surface"));
     const activeColor = Cesium.Color.fromCssColorString(cssColorString("--color-primary-active"));
+    const valueLowHex = cssColorString("--color-value-low");
+    const valueMidHex = cssColorString("--color-value-mid");
+    const valueHighHex = cssColorString("--color-value-high");
+    const valueLowColor = Cesium.Color.fromCssColorString(valueLowHex);
 
-    for (const pin of pins) {
-      const colorVar = clientTypeColorVar(primaryClientType(pin.clientTypes));
-      const fillColor = Cesium.Color.fromCssColorString(cssColorString(colorVar));
-      const selected = pin.id === selectedAccountId;
-      const phase = stablePhase(pin.id);
-      const baseSize = selected ? ACCOUNT_PIN_SELECTED_BASE_SIZE : ACCOUNT_PIN_BASE_SIZE;
-      const amplitude = selected ? SELECTED_PULSE_AMPLITUDE : AMBIENT_PULSE_AMPLITUDE;
-      const periodMs = selected ? SELECTED_PULSE_PERIOD_MS : AMBIENT_PULSE_PERIOD_MS;
+    function renderEntities(progress: number) {
+      accountsDataSource!.entities.removeAll();
+      viewer!.entities.removeAll();
+      clusterPulseTargetsRef.current.clear();
 
-      accountsDataSource.entities.add({
-        id: `account-pin-${pin.id}`,
-        position: Cesium.Cartesian3.fromDegrees(pin.coordinate.longitude, pin.coordinate.latitude),
-        properties: { accountId: pin.id, clientTypeColorVar: colorVar },
-        point: {
-          pixelSize: new Cesium.CallbackProperty(() => baseSize * pulseFactor(Date.now(), amplitude, periodMs, phase), false),
-          color: fillColor,
-          outlineColor: selected ? activeColor : surfaceColor,
-          outlineWidth: selected ? ACCOUNT_PIN_SELECTED_OUTLINE_WIDTH : ACCOUNT_PIN_OUTLINE_WIDTH,
-          disableDepthTestDistance: Number.POSITIVE_INFINITY,
-          heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
-        },
-      });
+      for (const pin of pins) {
+        const colorVar = clientTypeColorVar(primaryClientType(pin.clientTypes));
+        const clientColor = Cesium.Color.fromCssColorString(cssColorString(colorVar));
+        const selected = pin.id === selectedAccountId;
+        const phase = stablePhase(pin.id);
+        const position = Cesium.Cartesian3.fromDegrees(pin.coordinate.longitude, pin.coordinate.latitude);
+        const hasValue = pin.openPipelineValue > 0;
+
+        // The flat dot: always present (and clustered/pulsing) for
+        // zero-pipeline accounts — a minimal marker, never a tower. For
+        // accounts with value it fades out as the tower fades/grows in, in
+        // either direction of travel.
+        const showDot = !hasValue || progress < 1;
+        if (showDot) {
+          const dotAlpha = hasValue ? Math.max(0, 1 - progress) : 1;
+          const dotColor = !hasValue && progress > 0 ? valueLowColor : clientColor;
+          const baseSize = selected ? ACCOUNT_PIN_SELECTED_BASE_SIZE : ACCOUNT_PIN_BASE_SIZE;
+          const amplitude = selected ? SELECTED_PULSE_AMPLITUDE : AMBIENT_PULSE_AMPLITUDE;
+          const periodMs = selected ? SELECTED_PULSE_PERIOD_MS : AMBIENT_PULSE_PERIOD_MS;
+
+          accountsDataSource!.entities.add({
+            id: `account-pin-${pin.id}`,
+            position,
+            properties: { accountId: pin.id, clientTypeColorVar: colorVar },
+            point: {
+              pixelSize: new Cesium.CallbackProperty(() => baseSize * pulseFactor(Date.now(), amplitude, periodMs, phase), false),
+              color: dotColor.withAlpha(dotAlpha),
+              outlineColor: selected ? activeColor : surfaceColor,
+              outlineWidth: selected ? ACCOUNT_PIN_SELECTED_OUTLINE_WIDTH : ACCOUNT_PIN_OUTLINE_WIDTH,
+              disableDepthTestDistance: Number.POSITIVE_INFINITY,
+              heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+            },
+          });
+        }
+
+        if (hasValue && progress > 0) {
+          const growAlpha = Math.min(1, progress);
+          const height = Math.max(1, valueToTowerHeightMeters(pin.openPipelineValue) * progress);
+          const fillHex = valueColorHex(valueLowHex, valueMidHex, valueHighHex, valueToScaleT(pin.openPipelineValue));
+          const outlineColor = selected ? activeColor : surfaceColor;
+
+          viewer!.entities.add({
+            id: `account-tower-${pin.id}`,
+            position,
+            properties: { accountId: pin.id },
+            polygon: {
+              hierarchy: new Cesium.PolygonHierarchy(hexagonPositions(position, TOWER_HEX_RADIUS_METERS)),
+              height: 0,
+              heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+              extrudedHeight: height,
+              extrudedHeightReference: Cesium.HeightReference.RELATIVE_TO_GROUND,
+              material: Cesium.Color.fromCssColorString(fillHex).withAlpha(growAlpha),
+              outline: true,
+              outlineColor: outlineColor.withAlpha(growAlpha),
+              outlineWidth: selected ? 3 : 1,
+            },
+          });
+
+          // Selection indicator for a settled tower — a pulsing ring at its
+          // ground anchor, not an outline change (color/height already
+          // carry the value encoding).
+          if (selected && progress >= 1) {
+            viewer!.entities.add({
+              id: `account-tower-ring-${pin.id}`,
+              position,
+              ellipse: {
+                semiMinorAxis: new Cesium.CallbackProperty(
+                  () => TOWER_HEX_RADIUS_METERS * (1.3 + 0.25 * Math.sin(performance.now() / 350)),
+                  false,
+                ),
+                semiMajorAxis: new Cesium.CallbackProperty(
+                  () => TOWER_HEX_RADIUS_METERS * (1.3 + 0.25 * Math.sin(performance.now() / 350)),
+                  false,
+                ),
+                heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+                material: activeColor.withAlpha(0.35),
+                outline: true,
+                outlineColor: activeColor,
+                outlineWidth: 2,
+              },
+            });
+          }
+        }
+      }
+
+      for (const pin of locationPins) {
+        const fillColor = Cesium.Color.fromCssColorString(cssColorString(LOCATION_KIND_COLOR_VAR[pin.kind] ?? "--color-text-faint"));
+        const phase = stablePhase(pin.id);
+
+        viewer!.entities.add({
+          id: `location-pin-${pin.id}`,
+          position: Cesium.Cartesian3.fromDegrees(pin.coordinate.longitude, pin.coordinate.latitude),
+          properties: { locationPinId: pin.id },
+          point: {
+            pixelSize: new Cesium.CallbackProperty(
+              () => LOCATION_PIN_BASE_SIZE * pulseFactor(Date.now(), AMBIENT_PULSE_AMPLITUDE, AMBIENT_PULSE_PERIOD_MS, phase),
+              false,
+            ),
+            color: fillColor.withAlpha(pin.reviewStatus === "ReviewRequired" ? 0.6 : 1),
+            outlineColor: surfaceColor,
+            outlineWidth: LOCATION_PIN_OUTLINE_WIDTH,
+            disableDepthTestDistance: Number.POSITIVE_INFINITY,
+            heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+          },
+        });
+      }
     }
 
-    for (const pin of locationPins) {
-      const fillColor = Cesium.Color.fromCssColorString(cssColorString(LOCATION_KIND_COLOR_VAR[pin.kind] ?? "--color-text-faint"));
-      const phase = stablePhase(pin.id);
+    const startProgress = progressRef.current;
+    const targetProgress = viewMode === "tower" ? 1 : 0;
 
-      viewer.entities.add({
-        id: `location-pin-${pin.id}`,
-        position: Cesium.Cartesian3.fromDegrees(pin.coordinate.longitude, pin.coordinate.latitude),
-        properties: { locationPinId: pin.id },
-        point: {
-          pixelSize: new Cesium.CallbackProperty(
-            () => LOCATION_PIN_BASE_SIZE * pulseFactor(Date.now(), AMBIENT_PULSE_AMPLITUDE, AMBIENT_PULSE_PERIOD_MS, phase),
-            false,
-          ),
-          color: fillColor.withAlpha(pin.reviewStatus === "ReviewRequired" ? 0.6 : 1),
-          outlineColor: surfaceColor,
-          outlineWidth: LOCATION_PIN_OUTLINE_WIDTH,
-          disableDepthTestDistance: Number.POSITIVE_INFINITY,
-          heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
-        },
-      });
+    // Skip the RAF loop entirely when there's nothing to animate (the
+    // common case — most renders aren't a flat/tower transition). Running
+    // it unconditionally rebuilt every entity from scratch on every frame
+    // for 550ms even when startProgress === targetProgress, which fought
+    // with clustering's own recompute-on-change and read as pins
+    // flickering color/size/position off their anchors.
+    if (startProgress === targetProgress) {
+      renderEntities(startProgress);
+      return;
     }
-  }, [pins, locationPins, selectedAccountId]);
+
+    const startTime = performance.now();
+    let animationFrame: number | null = null;
+
+    function tick(now: number) {
+      const linear = Math.min(1, (now - startTime) / TOWER_TRANSITION_DURATION_MS);
+      const eased = easeOutCubic(linear);
+      const value = startProgress + (targetProgress - startProgress) * eased;
+      progressRef.current = value;
+      renderEntities(value);
+      if (linear < 1) {
+        animationFrame = requestAnimationFrame(tick);
+      }
+    }
+    animationFrame = requestAnimationFrame(tick);
+
+    return () => {
+      if (animationFrame !== null) cancelAnimationFrame(animationFrame);
+    };
+  }, [pins, locationPins, selectedAccountId, viewMode]);
 
   // Selecting an account recenters the camera on it but keeps whatever
   // altitude the user is currently at — clicking a pin should never yank
@@ -364,6 +533,14 @@ export function CesiumGlobe({ pins, locationPins = [], selectedAccountId, onSele
   return (
     <div className="cesium-globe">
       <div ref={containerRef} className="cesium-globe__canvas" />
+      {hoverInfo && (
+        <div className="cesium-globe__tooltip" style={{ left: hoverInfo.x, top: hoverInfo.y }} aria-hidden="true">
+          <span className="cesium-globe__tooltip-name">{hoverInfo.name}</span>
+          <span className="cesium-globe__tooltip-value">
+            {hoverInfo.value > 0 ? `${formatCurrency(hoverInfo.value)} open pipeline` : "No open pipeline"}
+          </span>
+        </div>
+      )}
       {/* Same accessible-alternative pattern as BrazilMap: Cesium's canvas
           isn't focusable/screen-reader-visible, so real tabbable buttons
           mirror each pin's click behavior. */}
@@ -373,7 +550,7 @@ export function CesiumGlobe({ pins, locationPins = [], selectedAccountId, onSele
             key={pin.id}
             type="button"
             className="cesium-globe__a11y-pin"
-            aria-label={pin.name}
+            aria-label={pin.openPipelineValue > 0 ? `${pin.name} — ${formatCurrency(pin.openPipelineValue)} open pipeline` : pin.name}
             aria-pressed={pin.id === selectedAccountId}
             onClick={() => onSelectAccount?.(pin.id)}
           >

@@ -1,4 +1,4 @@
-import type { Account, ExternalReference, OfficeLocation, TemperatureAssessment } from "@pulse-brazil/domain";
+import { DocumentType, type Account, type ExternalReference, type OfficeLocation, type TemperatureAssessment } from "@pulse-brazil/domain";
 import { asAccountId } from "@pulse-brazil/domain";
 import type {
   AccountDetailDto,
@@ -9,10 +9,13 @@ import type { AccountLocationSummaryDto, AccountSummaryDto } from "../../dto/acc
 import { ValidationError } from "../../errors/ApplicationError.js";
 import type { IAccountRepository } from "../../ports/IAccountRepository.js";
 import type { IAccountResearchBriefRepository } from "../../ports/IAccountResearchBriefRepository.js";
+import type { IDealRepository } from "../../ports/IDealRepository.js";
+import type { IDocumentRepository } from "../../ports/IDocumentRepository.js";
 import type { IInsightRepository } from "../../ports/IInsightRepository.js";
 import type { ISignalRepository } from "../../ports/ISignalRepository.js";
 import type { ITemperatureAssessmentRepository } from "../../ports/ITemperatureAssessmentRepository.js";
 import { toInsightDto } from "../insight/GenerateInsight.js";
+import { toDealDto } from "../pipeline/ImportPipelineCsv.js";
 import { toSignalDto } from "../signal/ListSignalsForAccount.js";
 import { toAccountResearchBriefDto } from "./RunAccountResearchSweep.js";
 
@@ -67,6 +70,8 @@ export class GetAccountDetail {
     private readonly temperature: ITemperatureAssessmentRepository,
     private readonly insights: IInsightRepository,
     private readonly researchBriefs: IAccountResearchBriefRepository,
+    private readonly deals: IDealRepository,
+    private readonly documents: IDocumentRepository,
   ) {}
 
   async execute(id: string): Promise<AccountDetailDto | null> {
@@ -78,17 +83,23 @@ export class GetAccountDetail {
     const account = await this.accounts.findById(accountId);
     if (!account) return null;
 
-    const [latestTemperature, accountSignals, latestInsight, researchBrief] = await Promise.all([
+    const [latestTemperature, accountSignals, latestInsight, researchBrief, snapshots] = await Promise.all([
       this.temperature.findLatestForAccount(accountId),
       this.signals.findByAccountId(accountId),
       this.insights.findLatestForAccount(accountId),
       this.researchBriefs.findByAccountId(accountId),
+      this.documents.findByDeclaredType(DocumentType.PipelineDataset),
     ]);
 
     const recentSignals = [...accountSignals]
       .sort((a, b) => b.dateObserved.getTime() - a.dateObserved.getTime())
       .slice(0, RECENT_SIGNALS_LIMIT)
       .map(toSignalDto);
+
+    const [latestSnapshot] = snapshots;
+    const latestDeals = latestSnapshot ? await this.deals.findBySourceDocumentId(latestSnapshot.id) : [];
+    const openDeals = latestDeals.filter((deal) => deal.isOpen && deal.linkedAccountId === accountId);
+    const openPipelineValue = openDeals.reduce((sum, deal) => sum + deal.amount, 0);
 
     return {
       ...toAccountSummaryDto(account, latestTemperature),
@@ -98,6 +109,8 @@ export class GetAccountDetail {
       recentSignals,
       latestInsight: latestInsight ? toInsightDto(latestInsight) : undefined,
       researchBrief: researchBrief ? toAccountResearchBriefDto(researchBrief) : undefined,
+      openPipelineValue,
+      openDeals: openDeals.sort((a, b) => b.amount - a.amount).map(toDealDto),
     };
   }
 }

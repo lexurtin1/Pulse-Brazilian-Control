@@ -11,4 +11,6 @@ export interface AccountMapPinDto {
   clientTypes: string[];
   coordinate: AccountMapPinCoordinateDto;
   verificationState: string;
+  /** Sum of `amount` across this account's open-stage deals (Discovery/Prospect/Qualified/Signed) from the latest Pipeline CSV upload. 0 if none. */
+  openPipelineValue: number;
 }

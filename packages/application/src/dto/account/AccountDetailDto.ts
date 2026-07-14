@@ -1,4 +1,5 @@
 import type { InsightDto } from "../insight/InsightDto.js";
+import type { DealDto } from "../pipeline/DealDto.js";
 import type { SignalDto } from "../signal/SignalDto.js";
 import type { AccountResearchBriefDto } from "./AccountResearchBriefDto.js";
 import type { AccountSummaryDto } from "./AccountSummaryDto.js";
@@ -31,4 +32,7 @@ export interface AccountDetailDto extends AccountSummaryDto {
   recentSignals: SignalDto[];
   latestInsight?: InsightDto;
   researchBrief?: AccountResearchBriefDto;
+  /** Sum of `amount` across this account's open-stage deals from the latest Pipeline CSV upload. 0 if none. */
+  openPipelineValue: number;
+  openDeals: DealDto[];
 }

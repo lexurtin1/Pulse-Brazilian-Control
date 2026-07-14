@@ -9,7 +9,7 @@ import type {
   SignalDto,
   TopOpenDealsResultDto,
 } from "@pulse-brazil/application";
-import { CesiumGlobe } from "./components/CesiumGlobe/CesiumGlobe";
+import { CesiumGlobe, type MapViewMode } from "./components/CesiumGlobe/CesiumGlobe";
 import { MapLegend } from "./components/MapLegend/MapLegend";
 import { CreateAccountFAB } from "./components/CreateAccountFAB/CreateAccountFAB";
 import { AccountDossier } from "./components/AccountDossier/AccountDossier";
@@ -61,6 +61,7 @@ export function App() {
   const [topOpenDeals, setTopOpenDeals] = useState<TopOpenDealsResultDto | null>(null);
   const [status, setStatus] = useState<LoadState>("loading");
   const [hiddenClientTypes, setHiddenClientTypes] = useState<ReadonlySet<string | undefined>>(() => new Set());
+  const [mapViewMode, setMapViewMode] = useState<MapViewMode>("flat");
   const [introDone, setIntroDone] = useState(() => sessionStorage.getItem(INTRO_SESSION_KEY) === "1");
   const mapWrapRef = useRef<HTMLDivElement>(null);
 
@@ -273,11 +274,18 @@ export function App() {
                     pins={visibleMapPins}
                     locationPins={locationPins}
                     selectedAccountId={selectedAccountId}
+                    viewMode={mapViewMode}
                     onSelectAccount={handleSelectAccount}
                     onSelectLocationPin={setSelectedLocationPin}
                   />
                 </div>
-                <MapLegend pins={mapPins} hiddenClientTypes={hiddenClientTypes} onToggleClientType={toggleClientType} />
+                <MapLegend
+                  pins={mapPins}
+                  hiddenClientTypes={hiddenClientTypes}
+                  onToggleClientType={toggleClientType}
+                  viewMode={mapViewMode}
+                  onChangeViewMode={setMapViewMode}
+                />
               </div>
             </motion.div>
 
