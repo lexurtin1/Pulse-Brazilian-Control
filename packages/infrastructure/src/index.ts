@@ -20,5 +20,6 @@ export * from "./adapters/PostgresAccountCountSnapshotRepository.js";
 export * from "./adapters/PerplexityMarketResearchAdapter.js";
 
 export * from "./db/pool.js";
+export * from "./db/PostgresUnitOfWork.js";
 
 export * from "./composition/CompositionRoot.js";

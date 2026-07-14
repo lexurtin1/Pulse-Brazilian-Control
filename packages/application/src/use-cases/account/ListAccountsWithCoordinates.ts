@@ -3,6 +3,7 @@ import type { AccountMapPinDto } from "../../dto/account/AccountMapPinDto.js";
 import type { IAccountRepository } from "../../ports/IAccountRepository.js";
 import type { IDealRepository } from "../../ports/IDealRepository.js";
 import type { IDocumentRepository } from "../../ports/IDocumentRepository.js";
+import type { ITemperatureAssessmentRepository } from "../../ports/ITemperatureAssessmentRepository.js";
 
 function pickMapOfficeLocation(account: Account): OfficeLocation | undefined {
   const primary = account.primaryOfficeLocation;
@@ -13,9 +14,8 @@ function pickMapOfficeLocation(account: Account): OfficeLocation | undefined {
 /**
  * Map-ready account list — a lean view model for pin rendering, per
  * ARCHITECTURE_PRINCIPLES: "Application services should return map-oriented
- * view models, not rendering code." Uses Account.latestTemperature (the
- * denormalized snapshot) rather than a per-row assessment lookup, same
- * reasoning as ListAccounts — avoiding an N+1 across every pinned account.
+ * view models, not rendering code." Current temperature is loaded from the
+ * canonical assessment history in one bulk query.
  *
  * openPipelineValue reads the same "latest snapshot" (most recently uploaded
  * PipelineDataset SourceDocument) as GetPipelineSummary/GetTopOpenDeals, summed
@@ -26,6 +26,7 @@ export class ListAccountsWithCoordinates {
     private readonly accounts: IAccountRepository,
     private readonly deals: IDealRepository,
     private readonly documents: IDocumentRepository,
+    private readonly temperature: ITemperatureAssessmentRepository,
   ) {}
 
   async execute(): Promise<AccountMapPinDto[]> {
@@ -33,6 +34,7 @@ export class ListAccountsWithCoordinates {
       this.accounts.findAllWithCoordinates(),
       this.documents.findByDeclaredType(DocumentType.PipelineDataset),
     ]);
+    const latestTemperatureByAccountId = await this.temperature.findLatestForAccounts(accounts.map((account) => account.id));
 
     const [latestSnapshot] = snapshots;
     const latestDeals = latestSnapshot ? await this.deals.findBySourceDocumentId(latestSnapshot.id) : [];
@@ -55,7 +57,7 @@ export class ListAccountsWithCoordinates {
       pins.push({
         id: account.id,
         name: account.name,
-        temperatureBand: account.latestTemperature?.band,
+        temperatureBand: latestTemperatureByAccountId.get(account.id)?.band,
         clientTypes: [...account.clientTypes],
         coordinate: { latitude: coordinate.latitude, longitude: coordinate.longitude },
         verificationState: office.verificationState,

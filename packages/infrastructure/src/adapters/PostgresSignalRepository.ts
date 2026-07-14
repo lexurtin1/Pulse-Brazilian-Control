@@ -13,7 +13,7 @@ import {
   SignalOrigin,
   SignalType,
 } from "@pulse-brazil/domain";
-import type { Pool } from "@neondatabase/serverless";
+import type { Pool, PoolClient } from "@neondatabase/serverless";
 
 interface EvidenceReferenceJson {
   kind: string;
@@ -42,6 +42,17 @@ interface SignalRow {
   confidence: string;
   origin: string;
 }
+
+const SIGNAL_SELECT = `
+  SELECT s.*,
+    ARRAY(
+      SELECT relation.account_id
+      FROM account_signals AS relation
+      WHERE relation.signal_id = s.id
+      ORDER BY relation.account_id
+    ) AS linked_account_ids
+  FROM signals AS s
+`;
 
 function evidenceReferenceToJson(evidence: { kind: string; referenceId?: string; excerpt?: string; locator?: string }): EvidenceReferenceJson {
   return {
@@ -83,25 +94,30 @@ function rowToSignal(row: SignalRow): Signal {
 
 /** Satisfies ISignalRepository. No ORM — plain parameterised SQL against the signals table (see migrations/002_create_signals.sql). */
 export class PostgresSignalRepository implements ISignalRepository {
-  constructor(private readonly pool: Pool) {}
+  constructor(private readonly pool: Pool | PoolClient) {}
 
   async findById(id: SignalId): Promise<Signal | null> {
-    const { rows } = await this.pool.query<SignalRow>("SELECT * FROM signals WHERE id = $1", [id]);
+    const { rows } = await this.pool.query<SignalRow>(`${SIGNAL_SELECT} WHERE s.id = $1`, [id]);
     const [row] = rows;
     return row ? rowToSignal(row) : null;
   }
 
   async findByAccountId(accountId: AccountId): Promise<Signal[]> {
     const { rows } = await this.pool.query<SignalRow>(
-      "SELECT * FROM signals WHERE linked_account_ids @> $1::jsonb ORDER BY date_observed DESC",
-      [JSON.stringify([accountId])],
+      `${SIGNAL_SELECT}
+       WHERE EXISTS (
+         SELECT 1 FROM account_signals AS relation
+         WHERE relation.signal_id = s.id AND relation.account_id = $1
+       )
+       ORDER BY s.date_observed DESC`,
+      [accountId],
     );
     return rows.map(rowToSignal);
   }
 
   async findRecent(limit: number): Promise<Signal[]> {
     const { rows } = await this.pool.query<SignalRow>(
-      "SELECT * FROM signals ORDER BY date_observed DESC LIMIT $1",
+      `${SIGNAL_SELECT} ORDER BY s.date_observed DESC LIMIT $1`,
       [limit],
     );
     return rows.map(rowToSignal);
@@ -109,7 +125,7 @@ export class PostgresSignalRepository implements ISignalRepository {
 
   async findMostRecentByType(type: SignalType): Promise<Signal | null> {
     const { rows } = await this.pool.query<SignalRow>(
-      "SELECT * FROM signals WHERE type = $1 ORDER BY date_observed DESC LIMIT 1",
+      `${SIGNAL_SELECT} WHERE s.type = $1 ORDER BY s.date_observed DESC LIMIT 1`,
       [type],
     );
     const [row] = rows;
@@ -119,22 +135,31 @@ export class PostgresSignalRepository implements ISignalRepository {
   async save(signal: Signal): Promise<void> {
     await this.pool.query(
       `
+      WITH saved_signal AS (
       INSERT INTO signals (
-        id, source, type, title, summary, linked_account_ids, linked_theme_ids,
+        id, source, type, title, summary, linked_theme_ids,
         geographic_scope, date_observed, evidence, confidence, origin
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
       ON CONFLICT (id) DO UPDATE SET
         source = EXCLUDED.source,
         type = EXCLUDED.type,
         title = EXCLUDED.title,
         summary = EXCLUDED.summary,
-        linked_account_ids = EXCLUDED.linked_account_ids,
         linked_theme_ids = EXCLUDED.linked_theme_ids,
         geographic_scope = EXCLUDED.geographic_scope,
         date_observed = EXCLUDED.date_observed,
         evidence = EXCLUDED.evidence,
         confidence = EXCLUDED.confidence,
         origin = EXCLUDED.origin
+      RETURNING id
+      ), deleted_links AS (
+        DELETE FROM account_signals
+        WHERE signal_id IN (SELECT id FROM saved_signal)
+      )
+      INSERT INTO account_signals (account_id, signal_id)
+      SELECT linked.account_id, saved_signal.id
+      FROM saved_signal
+      CROSS JOIN unnest($12::text[]) AS linked(account_id)
       `,
       [
         signal.id,
@@ -142,7 +167,6 @@ export class PostgresSignalRepository implements ISignalRepository {
         signal.type,
         signal.title,
         signal.summary,
-        JSON.stringify(signal.linkedAccountIds),
         JSON.stringify(signal.linkedThemeIds),
         signal.geographicScope
           ? JSON.stringify({
@@ -155,6 +179,7 @@ export class PostgresSignalRepository implements ISignalRepository {
         JSON.stringify(signal.evidence.map(evidenceReferenceToJson)),
         signal.confidence.toNumber(),
         signal.origin,
+        [...signal.linkedAccountIds],
       ],
     );
   }

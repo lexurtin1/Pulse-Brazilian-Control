@@ -5,6 +5,12 @@
     "packages/*"
   ],
   "scripts": {
-    "build:packages": "npm run build --workspace=@pulse-brazil/domain && npm run build --workspace=@pulse-brazil/application && npm run build --workspace=@pulse-brazil/infrastructure && npm run build --workspace=@pulse-brazil/api"
+    "build:packages": "npm run build --workspace=@pulse-brazil/domain && npm run build --workspace=@pulse-brazil/application && npm run build --workspace=@pulse-brazil/infrastructure && npm run build --workspace=@pulse-brazil/api",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "vitest run",
+    "verify": "npm run build:packages && npm run typecheck && npm run test"
+  },
+  "devDependencies": {
+    "vitest": "^3.2.4"
   }
 }

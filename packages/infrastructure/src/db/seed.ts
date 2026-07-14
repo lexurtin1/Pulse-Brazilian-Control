@@ -407,7 +407,6 @@ async function main(): Promise<void> {
         status: seed.status,
         geographicScope: GeographicScope.of({ countryCode: "BR", city: seed.city }),
         officeLocations: [office],
-        latestTemperature: assessment,
       });
 
       await accounts.save(account);

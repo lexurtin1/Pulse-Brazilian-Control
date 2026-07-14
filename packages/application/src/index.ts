@@ -23,6 +23,7 @@ export * from "./ports/ILocationRecordRepository.js";
 export * from "./ports/IDealRepository.js";
 export * from "./ports/IAccountCountSnapshotRepository.js";
 export * from "./ports/IMarketResearchLogRepository.js";
+export * from "./ports/IUnitOfWork.js";
 
 export * from "./dto/account/AccountSummaryDto.js";
 export * from "./dto/account/AccountDetailDto.js";

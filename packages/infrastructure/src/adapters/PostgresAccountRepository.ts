@@ -1,5 +1,4 @@
 import type { IAccountRepository } from "@pulse-brazil/application";
-import { toEvidenceReference } from "@pulse-brazil/application";
 import {
   Account,
   type AccountId,
@@ -7,21 +6,16 @@ import {
   AccountType,
   asAccountId,
   asOfficeLocationId,
-  asSignalId,
-  asTemperatureAssessmentId,
   asThemeId,
   ClientType,
-  ConfidenceScore,
   Coordinate,
   ExternalReference,
   ExternalSystem,
   GeographicScope,
   LocationVerificationState,
   OfficeLocation,
-  TemperatureAssessment,
-  TemperatureBand,
 } from "@pulse-brazil/domain";
-import type { Pool } from "@neondatabase/serverless";
+import type { Pool, PoolClient } from "@neondatabase/serverless";
 
 interface CoordinateJson {
   latitude: number;
@@ -38,25 +32,6 @@ interface OfficeLocationJson {
   isPrimary: boolean;
 }
 
-interface EvidenceReferenceJson {
-  kind: string;
-  referenceId: string | null;
-  excerpt: string | null;
-  locator: string | null;
-}
-
-interface TemperatureAssessmentJson {
-  id: string;
-  accountId: string;
-  band: string;
-  rationale: string;
-  evidence: EvidenceReferenceJson[];
-  assessedAt: string;
-  assessedBy: string;
-  confidence: number;
-  nextAction: string | null;
-}
-
 interface ExternalReferenceJson {
   system: string;
   externalId: string;
@@ -71,8 +46,6 @@ interface AccountRow {
   geographic_scope: { countryCode: string; region: string | null; city: string | null };
   office_locations: OfficeLocationJson[];
   linked_theme_ids: string[];
-  linked_signal_ids: string[];
-  latest_temperature: TemperatureAssessmentJson | null;
   external_references: ExternalReferenceJson[];
   client_types: string[];
   account_owner: string | null;
@@ -130,50 +103,6 @@ function officeLocationToJson(office: OfficeLocation): OfficeLocationJson {
   };
 }
 
-function evidenceReferenceToJson(evidence: { kind: string; referenceId?: string; excerpt?: string; locator?: string }): EvidenceReferenceJson {
-  return {
-    kind: evidence.kind,
-    referenceId: evidence.referenceId ?? null,
-    excerpt: evidence.excerpt ?? null,
-    locator: evidence.locator ?? null,
-  };
-}
-
-function temperatureAssessmentFromJson(json: TemperatureAssessmentJson): TemperatureAssessment {
-  return TemperatureAssessment.of({
-    id: asTemperatureAssessmentId(json.id),
-    accountId: asAccountId(json.accountId),
-    band: json.band as TemperatureBand,
-    rationale: json.rationale,
-    evidence: json.evidence.map((evidenceJson) =>
-      toEvidenceReference({
-        kind: evidenceJson.kind,
-        referenceId: evidenceJson.referenceId ?? undefined,
-        excerpt: evidenceJson.excerpt ?? undefined,
-        locator: evidenceJson.locator ?? undefined,
-      }),
-    ),
-    assessedAt: new Date(json.assessedAt),
-    assessedBy: json.assessedBy,
-    confidence: ConfidenceScore.of(json.confidence),
-    nextAction: json.nextAction ?? undefined,
-  });
-}
-
-function temperatureAssessmentToJson(assessment: TemperatureAssessment): TemperatureAssessmentJson {
-  return {
-    id: assessment.id,
-    accountId: assessment.accountId,
-    band: assessment.band,
-    rationale: assessment.rationale,
-    evidence: assessment.evidence.map(evidenceReferenceToJson),
-    assessedAt: assessment.assessedAt.toISOString(),
-    assessedBy: assessment.assessedBy,
-    confidence: assessment.confidence.toNumber(),
-    nextAction: assessment.nextAction ?? null,
-  };
-}
-
 function externalReferenceFromJson(json: ExternalReferenceJson): ExternalReference {
   return ExternalReference.of({
     system: json.system as ExternalSystem,
@@ -200,8 +129,6 @@ function rowToAccount(row: AccountRow): Account {
       }),
       officeLocations: row.office_locations.map(officeLocationFromJson),
       linkedThemeIds: row.linked_theme_ids.map(asThemeId),
-      linkedSignalIds: row.linked_signal_ids.map(asSignalId),
-      latestTemperature: row.latest_temperature ? temperatureAssessmentFromJson(row.latest_temperature) : undefined,
       externalReferences: row.external_references.map(externalReferenceFromJson),
       clientTypes: row.client_types.map((value) => value as ClientType),
       accountOwner: row.account_owner ?? undefined,
@@ -215,10 +142,17 @@ function rowToAccount(row: AccountRow): Account {
 
 /** Satisfies IAccountRepository. No ORM — plain parameterised SQL against the accounts table (see migrations/001_create_accounts.sql). */
 export class PostgresAccountRepository implements IAccountRepository {
-  constructor(private readonly pool: Pool) {}
+  constructor(private readonly pool: Pool | PoolClient) {}
 
   async findById(id: AccountId): Promise<Account | null> {
     const { rows } = await this.pool.query<AccountRow>("SELECT * FROM accounts WHERE id = $1", [id]);
+    const [row] = rows;
+    return row ? rowToAccount(row) : null;
+  }
+
+  /** Prevents concurrent Account deletion while a transaction creates a relationship to it. */
+  async findByIdForLink(id: AccountId): Promise<Account | null> {
+    const { rows } = await this.pool.query<AccountRow>("SELECT * FROM accounts WHERE id = $1 FOR KEY SHARE", [id]);
     const [row] = rows;
     return row ? rowToAccount(row) : null;
   }
@@ -246,10 +180,9 @@ export class PostgresAccountRepository implements IAccountRepository {
       `
       INSERT INTO accounts (
         id, name, account_type, status, geographic_scope, office_locations,
-        linked_theme_ids, linked_signal_ids, latest_temperature, temperature_band,
-        external_references, client_types, account_owner, created_cohort_year,
-        open_opportunity_count, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, now())
+        linked_theme_ids, external_references, client_types, account_owner,
+        created_cohort_year, open_opportunity_count, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, now())
       ON CONFLICT (id) DO UPDATE SET
         name = EXCLUDED.name,
         account_type = EXCLUDED.account_type,
@@ -257,9 +190,6 @@ export class PostgresAccountRepository implements IAccountRepository {
         geographic_scope = EXCLUDED.geographic_scope,
         office_locations = EXCLUDED.office_locations,
         linked_theme_ids = EXCLUDED.linked_theme_ids,
-        linked_signal_ids = EXCLUDED.linked_signal_ids,
-        latest_temperature = EXCLUDED.latest_temperature,
-        temperature_band = EXCLUDED.temperature_band,
         external_references = EXCLUDED.external_references,
         client_types = EXCLUDED.client_types,
         account_owner = EXCLUDED.account_owner,
@@ -279,9 +209,6 @@ export class PostgresAccountRepository implements IAccountRepository {
         }),
         JSON.stringify(account.officeLocations.map(officeLocationToJson)),
         JSON.stringify(account.linkedThemeIds),
-        JSON.stringify(account.linkedSignalIds),
-        account.latestTemperature ? JSON.stringify(temperatureAssessmentToJson(account.latestTemperature)) : null,
-        account.latestTemperature?.band ?? null,
         JSON.stringify(account.externalReferences.map(externalReferenceToJson)),
         JSON.stringify(account.clientTypes),
         account.accountOwner ?? null,
