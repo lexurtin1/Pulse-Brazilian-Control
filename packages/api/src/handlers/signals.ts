@@ -4,6 +4,16 @@ import { getCompositionRoot } from "../compositionRoot.js";
 import { respondToError } from "./errorResponse.js";
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
+  if (req.method === "DELETE") {
+    try {
+      await getCompositionRoot().deleteAllSignals.execute();
+      res.status(200).json({ deleted: true });
+    } catch (error) {
+      respondToError(res, "[api/signals DELETE]", error);
+    }
+    return;
+  }
+
   if (req.method !== "POST") {
     res.status(405).json({ error: "Method not allowed" });
     return;

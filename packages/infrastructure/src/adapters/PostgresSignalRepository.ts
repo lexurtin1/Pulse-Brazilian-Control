@@ -158,4 +158,8 @@ export class PostgresSignalRepository implements ISignalRepository {
       ],
     );
   }
+
+  async deleteAll(): Promise<void> {
+    await this.pool.query("DELETE FROM signals");
+  }
 }

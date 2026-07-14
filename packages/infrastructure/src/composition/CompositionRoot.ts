@@ -4,6 +4,7 @@ import {
   CreateAccountFromLocationRecord,
   CreateNote,
   CreateSignal,
+  DeleteAllSignals,
   GenerateInsight,
   GetAccountDetail,
   GetActiveAccountsSummary,
@@ -19,6 +20,7 @@ import {
   ProcessDocumentUpload,
   ReconcileSalesforceAccounts,
   ResolveAccountCoordinate,
+  RunAccountResearchSweep,
   RunMarketResearchSweep,
   SubmitDocument,
   UpdateAccountTemperature,
@@ -29,6 +31,7 @@ import { GeocoderAdapter } from "../adapters/GeocoderAdapter.js";
 import { PerplexityMarketResearchAdapter } from "../adapters/PerplexityMarketResearchAdapter.js";
 import { PostgresAccountCountSnapshotRepository } from "../adapters/PostgresAccountCountSnapshotRepository.js";
 import { PostgresAccountRepository } from "../adapters/PostgresAccountRepository.js";
+import { PostgresAccountResearchBriefRepository } from "../adapters/PostgresAccountResearchBriefRepository.js";
 import { PostgresContextBundleRepository } from "../adapters/PostgresContextBundleRepository.js";
 import { PostgresDealRepository } from "../adapters/PostgresDealRepository.js";
 import { PostgresDocumentRepository } from "../adapters/PostgresDocumentRepository.js";
@@ -67,6 +70,8 @@ export class CompositionRoot {
   readonly createSignal: CreateSignal;
   readonly listSignalsForAccount: ListSignalsForAccount;
   readonly listRecentSignals: ListRecentSignals;
+  readonly deleteAllSignals: DeleteAllSignals;
+  readonly runAccountResearchSweep: RunAccountResearchSweep;
   /** Exposed under this name per the requested composition-root shape; the class itself is SubmitDocument — see README. */
   readonly ingestDocument: SubmitDocument;
   readonly processDocumentUpload: ProcessDocumentUpload;
@@ -87,6 +92,7 @@ export class CompositionRoot {
     this.pool = createPool(config.databaseUrl);
 
     const accounts = new PostgresAccountRepository(this.pool);
+    const accountResearchBriefs = new PostgresAccountResearchBriefRepository(this.pool);
     const signals = new PostgresSignalRepository(this.pool);
     const documents = new PostgresDocumentRepository(this.pool);
     const notes = new PostgresNoteRepository(this.pool);
@@ -106,13 +112,15 @@ export class CompositionRoot {
 
     this.createAccount = new CreateAccount(accounts, idGenerator);
     this.listAccounts = new ListAccounts(accounts);
-    this.getAccountDetail = new GetAccountDetail(accounts, signals, temperatureAssessments, insights);
+    this.getAccountDetail = new GetAccountDetail(accounts, signals, temperatureAssessments, insights, accountResearchBriefs);
     this.updateAccountTemperature = new UpdateAccountTemperature(accounts, temperatureAssessments, idGenerator);
     this.resolveAccountCoordinate = new ResolveAccountCoordinate(accounts, geocoder);
     this.listAccountsWithCoordinates = new ListAccountsWithCoordinates(accounts);
     this.createSignal = new CreateSignal(signals, accounts, idGenerator);
     this.listSignalsForAccount = new ListSignalsForAccount(signals);
     this.listRecentSignals = new ListRecentSignals(signals);
+    this.deleteAllSignals = new DeleteAllSignals(signals);
+    this.runAccountResearchSweep = new RunAccountResearchSweep(accounts, accountResearchBriefs, marketResearch);
     this.ingestDocument = new SubmitDocument(documents, idGenerator);
     this.createNote = new CreateNote(notes, accounts, idGenerator);
     this.processDocumentUpload = new ProcessDocumentUpload(documents, accounts, claudeService, this.createSignal, idGenerator);

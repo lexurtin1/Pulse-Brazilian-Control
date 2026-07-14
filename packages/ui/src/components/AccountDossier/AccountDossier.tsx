@@ -5,6 +5,7 @@ import { fetchAccountDetail } from "../../api/client";
 import { useDialogA11y } from "../../hooks/useDialogA11y";
 import { formatEnumLabel } from "../../utils/formatEnumLabel";
 import { clientTypeColorVar, clientTypeLabel, primaryClientType } from "../../utils/clientType";
+import { InformationSweepSection } from "../InformationSweepSection/InformationSweepSection";
 import "./AccountDossier.css";
 
 interface AccountDossierProps {
@@ -83,6 +84,14 @@ export function AccountDossier({ accountId, onClose }: AccountDossierProps) {
                 <span className="account-dossier__location">{state.detail.primaryLocation.city}</span>
               )}
             </div>
+
+            <InformationSweepSection
+              accountId={state.detail.id}
+              brief={state.detail.researchBrief}
+              onSweepComplete={(researchBrief) =>
+                setState((prev) => (prev.status === "ready" ? { ...prev, detail: { ...prev.detail, researchBrief } } : prev))
+              }
+            />
 
             {state.detail.latestInsight && (
               <section className="account-dossier__section">

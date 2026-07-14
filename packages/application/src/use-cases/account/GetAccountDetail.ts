@@ -8,11 +8,13 @@ import type {
 import type { AccountLocationSummaryDto, AccountSummaryDto } from "../../dto/account/AccountSummaryDto.js";
 import { ValidationError } from "../../errors/ApplicationError.js";
 import type { IAccountRepository } from "../../ports/IAccountRepository.js";
+import type { IAccountResearchBriefRepository } from "../../ports/IAccountResearchBriefRepository.js";
 import type { IInsightRepository } from "../../ports/IInsightRepository.js";
 import type { ISignalRepository } from "../../ports/ISignalRepository.js";
 import type { ITemperatureAssessmentRepository } from "../../ports/ITemperatureAssessmentRepository.js";
 import { toInsightDto } from "../insight/GenerateInsight.js";
 import { toSignalDto } from "../signal/ListSignalsForAccount.js";
+import { toAccountResearchBriefDto } from "./RunAccountResearchSweep.js";
 
 const RECENT_SIGNALS_LIMIT = 10;
 
@@ -64,6 +66,7 @@ export class GetAccountDetail {
     private readonly signals: ISignalRepository,
     private readonly temperature: ITemperatureAssessmentRepository,
     private readonly insights: IInsightRepository,
+    private readonly researchBriefs: IAccountResearchBriefRepository,
   ) {}
 
   async execute(id: string): Promise<AccountDetailDto | null> {
@@ -75,10 +78,11 @@ export class GetAccountDetail {
     const account = await this.accounts.findById(accountId);
     if (!account) return null;
 
-    const [latestTemperature, accountSignals, latestInsight] = await Promise.all([
+    const [latestTemperature, accountSignals, latestInsight, researchBrief] = await Promise.all([
       this.temperature.findLatestForAccount(accountId),
       this.signals.findByAccountId(accountId),
       this.insights.findLatestForAccount(accountId),
+      this.researchBriefs.findByAccountId(accountId),
     ]);
 
     const recentSignals = [...accountSignals]
@@ -93,6 +97,7 @@ export class GetAccountDetail {
       linkedThemeIds: [...account.linkedThemeIds],
       recentSignals,
       latestInsight: latestInsight ? toInsightDto(latestInsight) : undefined,
+      researchBrief: researchBrief ? toAccountResearchBriefDto(researchBrief) : undefined,
     };
   }
 }

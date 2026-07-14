@@ -1,0 +1,40 @@
+.clear-feed-button {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* Danger accent, distinct from the teal/green feed-controls buttons next to
+   it — this one permanently deletes data. */
+.feed-action-button--danger {
+  border-color: color-mix(in srgb, var(--color-temp-warm) 50%, transparent);
+  background: color-mix(in srgb, var(--color-temp-warm) 12%, var(--color-surface));
+  color: var(--color-temp-warm);
+}
+
+.feed-action-button--danger:hover {
+  background: color-mix(in srgb, var(--color-temp-warm) 20%, var(--color-surface));
+}
+
+.feed-action-button--danger:focus-visible {
+  outline-color: var(--color-temp-warm);
+}
+
+/* Armed confirmation state — a stronger fill so the second click reads as deliberate. */
+.feed-action-button--danger[data-confirming] {
+  background: color-mix(in srgb, var(--color-temp-warm) 32%, var(--color-surface));
+}
+
+.clear-feed-button__spin {
+  animation: clear-feed-spin 1s linear infinite;
+}
+
+@keyframes clear-feed-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}

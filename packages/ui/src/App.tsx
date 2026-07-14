@@ -254,7 +254,12 @@ export function App() {
                   : "Upload a Salesforce pipeline export to populate this card"
               }
             />
-            <FeedControlsCard accountsForLinking={accounts} onImported={refreshAfterUpload} onSweepComplete={refreshSignals} />
+            <FeedControlsCard
+              accountsForLinking={accounts}
+              onImported={refreshAfterUpload}
+              onSweepComplete={refreshSignals}
+              onFeedCleared={refreshSignals}
+            />
           </motion.div>
 
           <div className="main-grid">

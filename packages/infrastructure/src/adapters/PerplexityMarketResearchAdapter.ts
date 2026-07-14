@@ -1,4 +1,7 @@
 import type {
+  CompanyResearchQuery,
+  CompanyResearchResult,
+  ICompanyResearchService,
   IMarketResearchService,
   MarketResearchQuery,
   MarketResearchRecency,
@@ -46,6 +49,30 @@ interface PerplexityStructuredContent {
   detail: string;
 }
 
+const COMPANY_BRIEF_RESPONSE_SCHEMA = {
+  type: "object",
+  properties: {
+    history: {
+      type: "array",
+      items: { type: "string" },
+      description:
+        "Concise, purely factual bullet points about the company's history: founding year, founders or parent company, ownership structure (independent, subsidiary, PE-owned, listed, etc.), and key milestones such as mergers, acquisitions, or major launches. No opinions, no speculation, no commentary — facts only. Always in English, even when source material is in Portuguese or another language. Use as many or as few bullets as there is genuine information for; return an empty array rather than padding with filler or guessing.",
+    },
+    competitiveIntel: {
+      type: "array",
+      items: { type: "string" },
+      description:
+        "Concise, purely factual bullet points of competitive intelligence relevant to Calastone, a cross-border fund order-routing and settlement network: the company's current transfer agency or fund order-routing provider(s) if publicly known, custodian(s) or administrator(s), platforms or distributors it connects to, recent fund launches or market expansion, and any funds-infrastructure technology partnerships. No opinions, no speculation, no commentary — facts only. Always in English, even when source material is in Portuguese or another language. Use as many or as few bullets as there is genuine information for; return an empty array rather than padding with filler or guessing.",
+    },
+  },
+  required: ["history", "competitiveIntel"],
+};
+
+interface CompanyBriefStructuredContent {
+  history: string[];
+  competitiveIntel: string[];
+}
+
 interface PerplexityChoice {
   message: { content: string };
 }
@@ -82,7 +109,7 @@ function buildUserMessage(query: MarketResearchQuery): string {
  * Forces structured JSON output (response_format: json_schema) so callers
  * always get a small, fixed-shape set of bullets rather than free prose.
  */
-export class PerplexityMarketResearchAdapter implements IMarketResearchService {
+export class PerplexityMarketResearchAdapter implements IMarketResearchService, ICompanyResearchService {
   constructor(private readonly apiKey: string) {}
 
   async research(query: MarketResearchQuery): Promise<MarketResearchResult> {
@@ -149,6 +176,71 @@ export class PerplexityMarketResearchAdapter implements IMarketResearchService {
       bullets: structured.bullets ?? [],
       detail: structured.detail ?? "",
       sources,
+      retrievedAt: new Date(),
+    };
+  }
+
+  /**
+   * The "Information Sweep" call for a single account. Deliberately
+   * unrestricted (no search_recency_filter) — company history and current
+   * competitive relationships aren't "what changed this week" questions, and
+   * an artificial recency window would hide older-but-still-true facts.
+   * Citations aren't requested or parsed: this feature shows no sources at
+   * all, per the operator's explicit request.
+   */
+  async researchCompany(query: CompanyResearchQuery): Promise<CompanyResearchResult> {
+    const body: Record<string, unknown> = {
+      model: MODEL,
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are compiling a factual company research brief for an employee of Calastone, a cross-border fund order-routing and settlement network, who is looking at this company on a map of accounts and wants an objective overview before a call. Ground everything in real web search results — including Brazilian Portuguese-language sources — but always write in English, translating and summarizing rather than quoting the source language. State facts plainly and neutrally: no opinions, no speculation, no editorializing, no sales framing. If you cannot find genuine information for a section, return an empty array for it rather than guessing or padding with generic statements. Respond with the exact JSON shape requested — no markdown, no prose outside the JSON.",
+        },
+        { role: "user", content: `Company name: ${query.accountName}. Compile a factual history and competitive-intelligence brief on this company.` },
+      ],
+      response_format: {
+        type: "json_schema",
+        json_schema: { schema: COMPANY_BRIEF_RESPONSE_SCHEMA },
+      },
+      return_citations: false,
+      return_images: false,
+      max_tokens: 1536,
+    };
+
+    let response: Response;
+    try {
+      response = await fetch(PERPLEXITY_ENDPOINT, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${this.apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      });
+    } catch (error) {
+      throw new Error(`Perplexity request failed for company brief "${query.accountName}": ${error instanceof Error ? error.message : String(error)}`);
+    }
+
+    if (!response.ok) {
+      const bodyPreview = (await response.text()).slice(0, 200);
+      throw new Error(`Perplexity request failed with status ${response.status}: ${bodyPreview}`);
+    }
+
+    const payload = (await response.json()) as PerplexityResponse;
+    debugLog("raw company brief response body", payload);
+
+    const rawContent = payload.choices[0]?.message.content ?? "{}";
+    let structured: CompanyBriefStructuredContent;
+    try {
+      structured = JSON.parse(rawContent) as CompanyBriefStructuredContent;
+    } catch (error) {
+      throw new Error(`Perplexity returned non-JSON content for company brief "${query.accountName}": ${error instanceof Error ? error.message : String(error)}`);
+    }
+
+    return {
+      history: structured.history ?? [],
+      competitiveIntel: structured.competitiveIntel ?? [],
       retrievedAt: new Date(),
     };
   }

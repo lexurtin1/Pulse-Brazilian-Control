@@ -1,5 +1,6 @@
 import type { InsightDto } from "../insight/InsightDto.js";
 import type { SignalDto } from "../signal/SignalDto.js";
+import type { AccountResearchBriefDto } from "./AccountResearchBriefDto.js";
 import type { AccountSummaryDto } from "./AccountSummaryDto.js";
 
 export interface OfficeLocationCoordinateDto {
@@ -29,4 +30,5 @@ export interface AccountDetailDto extends AccountSummaryDto {
   linkedThemeIds: string[];
   recentSignals: SignalDto[];
   latestInsight?: InsightDto;
+  researchBrief?: AccountResearchBriefDto;
 }

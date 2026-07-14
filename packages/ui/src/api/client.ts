@@ -1,6 +1,7 @@
 import type {
   AccountDetailDto,
   AccountMapPinDto,
+  AccountResearchBriefDto,
   AccountSummaryDto,
   ActiveAccountsSummaryDto,
   ImportLocationCsvResultDto,
@@ -109,4 +110,18 @@ export function createAccount(params: {
 /** Triggers a real Perplexity call per market-wide topic (6 fixed topics) — same endpoint Vercel Cron hits on schedule. */
 export function runResearchSweep(): Promise<RunMarketResearchSweepResult> {
   return fetchJson("/api/signals/research-sweep");
+}
+
+/** Permanently deletes every signal in the database — backs the live feed's "Clear feed" button. Irreversible. */
+export async function clearSignals(): Promise<void> {
+  const response = await fetch("/api/signals", { method: "DELETE" });
+  const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+  if (!response.ok) {
+    throw new Error(payload?.error ?? `/api/signals DELETE responded with ${response.status}`);
+  }
+}
+
+/** Triggers a real, account-scoped Perplexity call ("Information Sweep") — replaces any existing brief for this account. */
+export function runAccountResearchSweep(accountId: string): Promise<AccountResearchBriefDto> {
+  return postJson(`/api/accounts/${encodeURIComponent(accountId)}`, {});
 }

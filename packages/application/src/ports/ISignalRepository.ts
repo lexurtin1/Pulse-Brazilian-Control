@@ -8,4 +8,6 @@ export interface ISignalRepository {
   /** Newest signal of a given type, or null if none exists yet — lets the market sweep tell Perplexity what it already knew last time. */
   findMostRecentByType(type: SignalType): Promise<Signal | null>;
   save(signal: Signal): Promise<void>;
+  /** Permanently deletes every signal — backs the live feed's "Clear feed" button. */
+  deleteAll(): Promise<void>;
 }

@@ -1,4 +1,5 @@
 export * from "./Account.js";
+export * from "./AccountResearchBrief.js";
 export * from "./AccountType.js";
 export * from "./ClientType.js";
 export * from "./AccountStatus.js";
