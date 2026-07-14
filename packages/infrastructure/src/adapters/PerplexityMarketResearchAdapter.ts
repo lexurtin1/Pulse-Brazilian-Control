@@ -49,26 +49,60 @@ interface PerplexityStructuredContent {
   detail: string;
 }
 
+const COMPANY_BRIEF_BULLET_MAX_ITEMS = 3;
+const COMPANY_BRIEF_BULLET_MAX_WORDS = 20;
+
+const COMPANY_BRIEF_OVERVIEW_MAX_WORDS = 30;
+
 const COMPANY_BRIEF_RESPONSE_SCHEMA = {
   type: "object",
   properties: {
+    overview: {
+      type: "string",
+      description:
+        `One short, plain-English sentence (no more than about ${COMPANY_BRIEF_OVERVIEW_MAX_WORDS} words) stating what this company is — e.g. its type of business and where it operates. No opinions, no speculation, no commentary. Empty string if nothing genuine is found — never a sentence saying information wasn't found or is unavailable.`,
+    },
     history: {
       type: "array",
       items: { type: "string" },
+      maxItems: COMPANY_BRIEF_BULLET_MAX_ITEMS,
       description:
-        "Concise, purely factual bullet points about the company's history: founding year, founders or parent company, ownership structure (independent, subsidiary, PE-owned, listed, etc.), and key milestones such as mergers, acquisitions, or major launches. No opinions, no speculation, no commentary — facts only. Always in English, even when source material is in Portuguese or another language. Use as many or as few bullets as there is genuine information for; return an empty array rather than padding with filler or guessing.",
+        `Up to ${COMPANY_BRIEF_BULLET_MAX_ITEMS} short, distinct bullet points about the company's history, each no more than about ${COMPANY_BRIEF_BULLET_MAX_WORDS} words: founding year, founders or parent company, ownership structure (independent, subsidiary, PE-owned, listed, etc.), and key milestones such as mergers, acquisitions, or major launches. Pick only the most important facts if there are more than ${COMPANY_BRIEF_BULLET_MAX_ITEMS} candidates — do not write a long list. No opinions, no speculation, no commentary — state each fact plainly, nothing else. Always in English, even when source material is in Portuguese or another language. If nothing genuine is found, return an empty array — never a bullet saying information wasn't found, is unavailable, or couldn't be verified.`,
     },
     competitiveIntel: {
       type: "array",
       items: { type: "string" },
+      maxItems: COMPANY_BRIEF_BULLET_MAX_ITEMS,
       description:
-        "Concise, purely factual bullet points of competitive intelligence relevant to Calastone, a cross-border fund order-routing and settlement network: the company's current transfer agency or fund order-routing provider(s) if publicly known, custodian(s) or administrator(s), platforms or distributors it connects to, recent fund launches or market expansion, and any funds-infrastructure technology partnerships. No opinions, no speculation, no commentary — facts only. Always in English, even when source material is in Portuguese or another language. Use as many or as few bullets as there is genuine information for; return an empty array rather than padding with filler or guessing.",
+        `Up to ${COMPANY_BRIEF_BULLET_MAX_ITEMS} short, distinct bullet points of competitive intelligence relevant to Calastone, a cross-border fund order-routing and settlement network, each no more than about ${COMPANY_BRIEF_BULLET_MAX_WORDS} words: the company's current transfer agency or fund order-routing provider(s) if publicly known, custodian(s) or administrator(s), platforms or distributors it connects to, recent fund launches or market expansion, and any funds-infrastructure technology partnerships. Pick only the most important facts if there are more than ${COMPANY_BRIEF_BULLET_MAX_ITEMS} candidates — do not write a long list. No opinions, no speculation, no commentary — state each fact plainly, nothing else. Always in English, even when source material is in Portuguese or another language. If nothing genuine is found, return an empty array — never a bullet saying information wasn't found, is unavailable, or couldn't be verified.`,
     },
   },
-  required: ["history", "competitiveIntel"],
+  required: ["overview", "history", "competitiveIntel"],
 };
 
+/**
+ * Belt-and-braces against sonar not reliably honoring the schema's "return
+ * an empty array/string, never a placeholder" instruction — strips any
+ * bullet or sentence that reads as a "nothing found" statement rather than
+ * an actual fact, and caps the list length client-side in case maxItems
+ * wasn't respected either.
+ */
+const NOT_FOUND_PATTERN = /\b(no (specific |publicly available |publicly )?information|not (publicly )?(available|disclosed|known|found)|could not (find|verify|locate)|unable to (find|verify|locate)|no (details|data|records) (were |are )?(found|available)|nothing (specific |genuine )?(was |is )?found)\b/i;
+
+function sanitizeCompanyBriefBullets(bullets: string[]): string[] {
+  return bullets
+    .map((bullet) => bullet.trim())
+    .filter((bullet) => bullet.length > 0 && !NOT_FOUND_PATTERN.test(bullet))
+    .slice(0, COMPANY_BRIEF_BULLET_MAX_ITEMS);
+}
+
+function sanitizeCompanyBriefOverview(overview: string): string {
+  const trimmed = overview.trim();
+  return trimmed.length > 0 && !NOT_FOUND_PATTERN.test(trimmed) ? trimmed : "";
+}
+
 interface CompanyBriefStructuredContent {
+  overview: string;
   history: string[];
   competitiveIntel: string[];
 }
@@ -195,9 +229,9 @@ export class PerplexityMarketResearchAdapter implements IMarketResearchService, 
         {
           role: "system",
           content:
-            "You are compiling a factual company research brief for an employee of Calastone, a cross-border fund order-routing and settlement network, who is looking at this company on a map of accounts and wants an objective overview before a call. Ground everything in real web search results — including Brazilian Portuguese-language sources — but always write in English, translating and summarizing rather than quoting the source language. State facts plainly and neutrally: no opinions, no speculation, no editorializing, no sales framing. If you cannot find genuine information for a section, return an empty array for it rather than guessing or padding with generic statements. Respond with the exact JSON shape requested — no markdown, no prose outside the JSON.",
+            `You are compiling a short, scannable company research brief for an employee of Calastone, a cross-border fund order-routing and settlement network, who is looking at this company on a map of accounts and wants an objective overview before a call — not a research report. Ground everything in real web search results — including Brazilian Portuguese-language sources — but always write in English, translating and summarizing rather than quoting the source language. Write for someone skimming, not an analyst: the overview is one short sentence (no more than about ${COMPANY_BRIEF_OVERVIEW_MAX_WORDS} words) stating what the company is, and each bullet is one short, plain-English sentence stating a single fact, no more than about ${COMPANY_BRIEF_BULLET_MAX_WORDS} words. Never dump raw search results, long paragraphs, or more than ${COMPANY_BRIEF_BULLET_MAX_ITEMS} bullets per section — if there is more material than that, select only the most important facts. State facts plainly and neutrally: no opinions, no speculation, no editorializing, no sales framing. If you cannot find genuine information for the overview or a section, return an empty string or empty array for it — do not write a sentence or bullet saying information wasn't found, is unavailable, or couldn't be verified; emptiness communicates that on its own. Respond with the exact JSON shape requested — no markdown, no prose outside the JSON.`,
         },
-        { role: "user", content: `Company name: ${query.accountName}. Compile a factual history and competitive-intelligence brief on this company.` },
+        { role: "user", content: `Company name: ${query.accountName}. Compile a one-sentence overview plus a factual history and competitive-intelligence brief on this company.` },
       ],
       response_format: {
         type: "json_schema",
@@ -239,8 +273,9 @@ export class PerplexityMarketResearchAdapter implements IMarketResearchService, 
     }
 
     return {
-      history: structured.history ?? [],
-      competitiveIntel: structured.competitiveIntel ?? [],
+      overview: sanitizeCompanyBriefOverview(structured.overview ?? ""),
+      history: sanitizeCompanyBriefBullets(structured.history ?? []),
+      competitiveIntel: sanitizeCompanyBriefBullets(structured.competitiveIntel ?? []),
       retrievedAt: new Date(),
     };
   }

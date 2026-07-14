@@ -7,6 +7,7 @@ import type { ICompanyResearchService } from "../../ports/ICompanyResearchServic
 
 export function toAccountResearchBriefDto(brief: AccountResearchBrief): AccountResearchBriefDto {
   return {
+    overview: brief.overview,
     history: [...brief.history],
     competitiveIntel: [...brief.competitiveIntel],
     retrievedAt: brief.retrievedAt.toISOString(),
@@ -41,6 +42,7 @@ export class RunAccountResearchSweep {
 
     const brief = AccountResearchBrief.of({
       accountId,
+      overview: result.overview,
       history: result.history,
       competitiveIntel: result.competitiveIntel,
       retrievedAt: result.retrievedAt,

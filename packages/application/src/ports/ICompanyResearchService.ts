@@ -11,6 +11,8 @@ export interface CompanyResearchQuery {
  * this into a domain AccountResearchBrief.
  */
 export interface CompanyResearchResult {
+  /** One plain factual sentence on what the company is — shown first, ahead of the two bullet sections. Empty if nothing genuine was found. */
+  overview: string;
   history: string[];
   competitiveIntel: string[];
   retrievedAt: Date;

@@ -12,11 +12,12 @@ interface InformationSweepSectionProps {
 }
 
 /**
- * Company History / Competitive Intel — a real, account-scoped Perplexity
- * call, persisted so it's still there next time this account is opened.
- * Re-running always replaces the prior brief in full, never appends. No
- * citations shown (per the operator's explicit request), and an empty
- * section just renders no bullets rather than a "nothing found" message.
+ * One-sentence overview, then Company History / Competitive Intel — a real,
+ * account-scoped Perplexity call, persisted so it's still there next time
+ * this account is opened. Re-running always replaces the prior brief in
+ * full, never appends. No citations shown (per the operator's explicit
+ * request), and an empty overview/section just renders nothing rather than
+ * a "nothing found" message.
  */
 export function InformationSweepSection({ accountId, brief, onSweepComplete }: InformationSweepSectionProps) {
   const [isRunning, setIsRunning] = useState(false);
@@ -45,6 +46,8 @@ export function InformationSweepSection({ accountId, brief, onSweepComplete }: I
           <span>Information Sweep</span>
         </button>
       </div>
+
+      {brief && brief.overview && <p className="information-sweep__overview">{brief.overview}</p>}
 
       {brief && <p className="information-sweep__timestamp">Last swept: {formatShortDate(brief.retrievedAt)}</p>}
 
