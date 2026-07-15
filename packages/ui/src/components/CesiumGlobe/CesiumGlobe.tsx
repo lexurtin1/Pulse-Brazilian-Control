@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import * as Cesium from "cesium";
 import "cesium/Build/Cesium/Widgets/widgets.css";
 import type { AccountMapPinDto, LocationRecordMapPinDto } from "@pulse-brazil/application";
-import { clientTypeColorVar, primaryClientType } from "../../utils/clientType";
 import { formatCurrency } from "../../utils/formatNumbers";
 import {
   stubTowerHeightMeters,
@@ -73,16 +72,11 @@ const BRAZIL_CENTER_LATITUDE = -14;
 const SPACE_ALTITUDE_METERS = 25_000_000;
 const FLY_IN_DURATION_SECONDS = 3;
 
-// Pins are the main thing on this page, at every zoom level — an earlier
-// version shrank them toward a "precise anchor" as the camera got close,
-// which made them unreadable up close (the opposite of the goal). Pins now
-// hold one fixed screen-space pixel size regardless of camera distance.
-const ACCOUNT_PIN_BASE_SIZE = 40;
-const ACCOUNT_PIN_SELECTED_BASE_SIZE = 52;
+// Location pins hold one fixed screen-space pixel size regardless of camera
+// distance — an earlier version shrank them toward a "precise anchor" as the
+// camera got close, which made them unreadable up close.
 const LOCATION_PIN_BASE_SIZE = 26;
 
-const ACCOUNT_PIN_OUTLINE_WIDTH = 3;
-const ACCOUNT_PIN_SELECTED_OUTLINE_WIDTH = 4;
 const LOCATION_PIN_OUTLINE_WIDTH = 3;
 
 // Pins sit on the ellipsoid, NOT clamped to terrain — do not "fix" this back to
@@ -97,15 +91,12 @@ const LOCATION_PIN_OUTLINE_WIDTH = 3;
 // ellipsoid the anchor is a fixed number that no tile load can move.
 const PIN_HEIGHT_REFERENCE = Cesium.HeightReference.NONE;
 
-// "Feel alive": every pin gently breathes (size oscillation) on a loop
-// rather than sitting dead-still. The selected pin pulses harder/faster so
-// it still reads as distinct now that pulsing isn't unique to it. Each pin
-// gets a stable per-id phase offset (not random-per-render, not synced)
-// so the whole map doesn't blink in unison like a single strobing light.
+// "Feel alive": every location pin gently breathes (size oscillation) on a loop
+// rather than sitting dead-still. Each pin gets a stable per-id phase offset
+// (not random-per-render, not synced) so the whole map doesn't blink in unison
+// like a single strobing light.
 const AMBIENT_PULSE_AMPLITUDE = 0.12;
 const AMBIENT_PULSE_PERIOD_MS = 2600;
-const SELECTED_PULSE_AMPLITUDE = 0.22;
-const SELECTED_PULSE_PERIOD_MS = 1400;
 
 function stablePhase(id: string): number {
   let hash = 0;
@@ -127,24 +118,13 @@ function pulseFactor(nowMs: number, amplitude: number, periodMs: number, phase: 
 // that positions (including terrain-clamped pins) stay numerically stable.
 const MINIMUM_ZOOM_DISTANCE_METERS = 100;
 
-// Flat account pins are NOT clustered. Cesium's EntityCluster was tried here
-// and removed: it recomputes on every camera tick, tearing down and rebuilding
-// its whole primitive pool each time, which fought the pins' own pulse and
-// selection rendering and left dots flickering, stranded, and mis-picked. Every
-// account is now simply its own pin at every zoom. Accounts, locations and
-// towers still each get their own DataSource so a rebuild of one layer never
-// disturbs another — towers rebuild on every camera change, and they must not
-// take the flat pins or location pins down with them.
-
-// Screen-space grouping range for TOWERS only (see groupPinsByScreenProximity).
-// Unrelated to the deleted dot clustering — towers are polygons, which Cesium's
-// clustering cannot touch at all, so their grouping is ours and is recomputed
-// only when the camera changes.
-const TOWER_GROUP_PIXEL_RANGE = 60;
-// Floor on the fit-to-group rectangle so clicking a tower whose members share
-// (almost) the same coordinate still visibly zooms in, rather than flying to a
-// degenerate zero-size rectangle.
-const TOWER_GROUP_ZOOM_PADDING_RADIANS = 0.002;
+// Nothing on this map is clustered. Cesium's EntityCluster was tried on the flat
+// dots and removed; screen-space grouping was tried on the towers and removed
+// too. Every account is its own pin (flat view) and its own tower (tower view),
+// at every zoom. Accounts, locations and towers still each get their own
+// DataSource so a rebuild of one layer never disturbs another — towers rebuild
+// on every camera change, and they must not take the flat pins or location pins
+// down with them.
 
 const TOWER_TRANSITION_DURATION_MS = 550;
 
@@ -173,101 +153,6 @@ function hexagonPositions(center: Cesium.Cartesian3, radiusMeters: number): Cesi
   return positions;
 }
 
-/** Bounding rectangle over raw lon/lat degrees, floored so a group whose members share (almost) one coordinate still zooms somewhere. */
-function rectangleForCoordinates(coordinates: { longitude: number; latitude: number }[]): Cesium.Rectangle | null {
-  if (coordinates.length === 0) return null;
-
-  let { west, east, south, north } = Cesium.Rectangle.fromDegrees(
-    Math.min(...coordinates.map((c) => c.longitude)),
-    Math.min(...coordinates.map((c) => c.latitude)),
-    Math.max(...coordinates.map((c) => c.longitude)),
-    Math.max(...coordinates.map((c) => c.latitude)),
-  );
-
-  if (east - west < TOWER_GROUP_ZOOM_PADDING_RADIANS) {
-    const centerLongitude = (east + west) / 2;
-    west = centerLongitude - TOWER_GROUP_ZOOM_PADDING_RADIANS / 2;
-    east = centerLongitude + TOWER_GROUP_ZOOM_PADDING_RADIANS / 2;
-  }
-  if (north - south < TOWER_GROUP_ZOOM_PADDING_RADIANS) {
-    const centerLatitude = (north + south) / 2;
-    south = centerLatitude - TOWER_GROUP_ZOOM_PADDING_RADIANS / 2;
-    north = centerLatitude + TOWER_GROUP_ZOOM_PADDING_RADIANS / 2;
-  }
-  return new Cesium.Rectangle(west, south, east, north);
-}
-
-interface TowerGroup {
-  members: AccountMapPinDto[];
-  longitude: number;
-  latitude: number;
-  totalValue: number;
-}
-
-/**
- * Screen-space grouping of account pins for Tower view.
- *
- * Towers are extruded polygons, and Cesium's clustering only ever operated on
- * point/billboard/label graphics — so towers could never have been clustered by
- * Cesium even when the flat pins were. Without this, every account within ~2x
- * the tower radius of another (i.e. most of Sao Paulo) was a permanently
- * overlapping pile at wide zoom. Grouping in screen space rather than by
- * geographic distance is what makes a group dissolve as you fly in: the same two
- * accounts are 60px apart at country zoom and half a screen apart over the city.
- *
- * This is ours, recomputed only on camera change, and shares nothing with the
- * Cesium EntityCluster that used to run on the flat pins.
- */
-function groupPinsByScreenProximity(viewer: Cesium.Viewer, pins: AccountMapPinDto[]): TowerGroup[] {
-  const groups: (TowerGroup & { screenX: number; screenY: number })[] = [];
-
-  for (const pin of pins) {
-    const world = Cesium.Cartesian3.fromDegrees(pin.coordinate.longitude, pin.coordinate.latitude);
-    const screen = Cesium.SceneTransforms.worldToWindowCoordinates(viewer.scene, world);
-
-    // Behind the globe / off-screen: no meaningful screen position to group by,
-    // so it stands alone. It is occluded anyway.
-    if (!screen) {
-      groups.push({
-        members: [pin],
-        longitude: pin.coordinate.longitude,
-        latitude: pin.coordinate.latitude,
-        totalValue: pin.openPipelineValue,
-        screenX: Number.POSITIVE_INFINITY,
-        screenY: Number.POSITIVE_INFINITY,
-      });
-      continue;
-    }
-
-    const existing = groups.find(
-      (group) => Math.hypot(group.screenX - screen.x, group.screenY - screen.y) <= TOWER_GROUP_PIXEL_RANGE,
-    );
-    if (existing) {
-      const count = existing.members.length;
-      existing.members.push(pin);
-      existing.totalValue += pin.openPipelineValue;
-      // Running mean, so a group's anchor is the centroid of its members
-      // rather than wherever its first member happened to be.
-      existing.longitude = (existing.longitude * count + pin.coordinate.longitude) / (count + 1);
-      existing.latitude = (existing.latitude * count + pin.coordinate.latitude) / (count + 1);
-      existing.screenX = (existing.screenX * count + screen.x) / (count + 1);
-      existing.screenY = (existing.screenY * count + screen.y) / (count + 1);
-      continue;
-    }
-
-    groups.push({
-      members: [pin],
-      longitude: pin.coordinate.longitude,
-      latitude: pin.coordinate.latitude,
-      totalValue: pin.openPipelineValue,
-      screenX: screen.x,
-      screenY: screen.y,
-    });
-  }
-
-  return groups;
-}
-
 export function CesiumGlobe({
   pins,
   locationPins = NO_LOCATION_PINS,
@@ -278,7 +163,6 @@ export function CesiumGlobe({
 }: CesiumGlobeProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<Cesium.Viewer | null>(null);
-  const accountsDataSourceRef = useRef<Cesium.CustomDataSource | null>(null);
   const towersDataSourceRef = useRef<Cesium.CustomDataSource | null>(null);
   const locationsDataSourceRef = useRef<Cesium.CustomDataSource | null>(null);
   const onSelectAccountRef = useRef(onSelectAccount);
@@ -344,12 +228,6 @@ export function CesiumGlobe({
     cameraController.enableInputs = true;
     cameraController.minimumZoomDistance = MINIMUM_ZOOM_DISTANCE_METERS;
 
-    // Clustering is deliberately left off: every account is its own pin, at
-    // every zoom. See the note by TOWER_GROUP_PIXEL_RANGE.
-    const accountsDataSource = new Cesium.CustomDataSource("accounts");
-    viewer.dataSources.add(accountsDataSource);
-    accountsDataSourceRef.current = accountsDataSource;
-
     const towersDataSource = new Cesium.CustomDataSource("towers");
     viewer.dataSources.add(towersDataSource);
     towersDataSourceRef.current = towersDataSource;
@@ -370,17 +248,6 @@ export function CesiumGlobe({
       if (!picked) return;
 
       const properties = picked.id?.properties;
-
-      // A grouped tower carries its members' ids instead of a single account.
-      // Clicking it flies to fit the members, which pulls them apart on screen
-      // and so dissolves the group.
-      const memberAccountIds = properties?.memberAccountIds?.getValue() as string[] | undefined;
-      if (memberAccountIds && memberAccountIds.length > 1) {
-        const memberPins = pinsRef.current.filter((pin) => memberAccountIds.includes(pin.id));
-        const rectangle = rectangleForCoordinates(memberPins.map((pin) => pin.coordinate));
-        if (rectangle) viewer.camera.flyTo({ destination: rectangle, duration: 0.8 });
-        return;
-      }
 
       const accountId = properties?.accountId?.getValue();
       if (accountId) {
@@ -420,27 +287,22 @@ export function CesiumGlobe({
       renderTowersRef.current = null;
       viewer.destroy();
       viewerRef.current = null;
-      accountsDataSourceRef.current = null;
       towersDataSourceRef.current = null;
       locationsDataSourceRef.current = null;
     };
   }, []);
 
-  // Account + location-record pins as Cesium entities, colored the same as the
-  // rest of the dashboard.
+  // Location-record pins and value towers as Cesium entities, colored the same
+  // as the rest of the dashboard.
   //
-  // Flat view is one dot per account — no clustering, no bubbles. Tower view is
-  // towers and NOTHING else: an account with no open pipeline is a short grey
-  // stub tower, not a leftover flat dot, so there is never a dot on screen once
-  // the transition settles. Switching modes animates the two layers past each
-  // other in lockstep on progressRef (dots fading out as towers grow in, and the
-  // reverse on the way back) rather than snapping.
+  // The flat view no longer draws account dots at all — accounts appear only as
+  // towers (tower view). Flat view is location pins alone. Toggling to tower
+  // grows the towers in; toggling back shrinks them out.
   useEffect(() => {
     const viewer = viewerRef.current;
-    const accountsDataSource = accountsDataSourceRef.current;
     const towersDataSource = towersDataSourceRef.current;
     const locationsDataSource = locationsDataSourceRef.current;
-    if (!viewer || !accountsDataSource || !towersDataSource || !locationsDataSource) return;
+    if (!viewer || !towersDataSource || !locationsDataSource) return;
 
     const surfaceColor = Cesium.Color.fromCssColorString(cssColorString("--color-surface"));
     const activeColor = Cesium.Color.fromCssColorString(cssColorString("--color-primary-active"));
@@ -448,39 +310,6 @@ export function CesiumGlobe({
     const valueLowHex = cssColorString("--color-value-low");
     const valueMidHex = cssColorString("--color-value-mid");
     const valueHighHex = cssColorString("--color-value-high");
-
-    function renderDots(progress: number) {
-      accountsDataSource!.entities.removeAll();
-      if (progress >= 1) return;
-
-      const alpha = 1 - progress;
-      for (const pin of pins) {
-        const clientColor = Cesium.Color.fromCssColorString(cssColorString(clientTypeColorVar(primaryClientType(pin.clientTypes))));
-        const selected = pin.id === selectedAccountId;
-        const phase = stablePhase(pin.id);
-        const baseSize = selected ? ACCOUNT_PIN_SELECTED_BASE_SIZE : ACCOUNT_PIN_BASE_SIZE;
-        const amplitude = selected ? SELECTED_PULSE_AMPLITUDE : AMBIENT_PULSE_AMPLITUDE;
-        const periodMs = selected ? SELECTED_PULSE_PERIOD_MS : AMBIENT_PULSE_PERIOD_MS;
-
-        accountsDataSource!.entities.add({
-          id: `account-pin-${pin.id}`,
-          position: Cesium.Cartesian3.fromDegrees(pin.coordinate.longitude, pin.coordinate.latitude),
-          properties: {
-            accountId: pin.id,
-            hoverName: pin.name,
-            hoverValue: pin.openPipelineValue,
-          },
-          point: {
-            pixelSize: new Cesium.CallbackProperty(() => baseSize * pulseFactor(Date.now(), amplitude, periodMs, phase), false),
-            color: clientColor.withAlpha(alpha),
-            outlineColor: (selected ? activeColor : surfaceColor).withAlpha(alpha),
-            outlineWidth: selected ? ACCOUNT_PIN_SELECTED_OUTLINE_WIDTH : ACCOUNT_PIN_OUTLINE_WIDTH,
-            disableDepthTestDistance: Number.POSITIVE_INFINITY,
-            heightReference: PIN_HEIGHT_REFERENCE,
-          },
-        });
-      }
-    }
 
     function renderTowers(progress: number) {
       towersDataSource!.entities.removeAll();
@@ -491,39 +320,28 @@ export function CesiumGlobe({
       const scaleAltitude = towerScaleAltitudeMeters(viewer!.camera.positionCartographic.height);
       const radius = towerRadiusMeters(scaleAltitude);
 
-      for (const group of groupPinsByScreenProximity(viewer!, pins)) {
-        const [firstMember] = group.members;
-        if (!firstMember) continue;
-
-        const grouped = group.members.length > 1;
-        const hasValue = group.totalValue > 0;
-        const selected = group.members.some((member) => member.id === selectedAccountId);
-        const position = Cesium.Cartesian3.fromDegrees(group.longitude, group.latitude);
+      for (const pin of pins) {
+        const hasValue = pin.openPipelineValue > 0;
+        const selected = pin.id === selectedAccountId;
+        const position = Cesium.Cartesian3.fromDegrees(pin.coordinate.longitude, pin.coordinate.latitude);
 
         const fullHeight = hasValue
-          ? valueToTowerHeightMeters(group.totalValue, scaleAltitude)
+          ? valueToTowerHeightMeters(pin.openPipelineValue, scaleAltitude)
           : stubTowerHeightMeters(scaleAltitude);
         const height = Math.max(1, fullHeight * progress);
         const material = hasValue
-          ? Cesium.Color.fromCssColorString(valueColorHex(valueLowHex, valueMidHex, valueHighHex, valueToScaleT(group.totalValue)))
+          ? Cesium.Color.fromCssColorString(valueColorHex(valueLowHex, valueMidHex, valueHighHex, valueToScaleT(pin.openPipelineValue)))
           : stubColor;
-        const id = grouped ? `tower-group-${group.members.map((m) => m.id).join("-")}` : `tower-${firstMember.id}`;
-        const properties = grouped
-          ? {
-              memberAccountIds: group.members.map((member) => member.id),
-              hoverName: `${group.members.length} accounts`,
-              hoverValue: group.totalValue,
-            }
-          : {
-              accountId: firstMember.id,
-              hoverName: firstMember.name,
-              hoverValue: group.totalValue,
-            };
+        const id = `tower-${pin.id}`;
 
         towersDataSource!.entities.add({
           id,
           position,
-          properties,
+          properties: {
+            accountId: pin.id,
+            hoverName: pin.name,
+            hoverValue: pin.openPipelineValue,
+          },
           polygon: {
             hierarchy: new Cesium.PolygonHierarchy(hexagonPositions(position, radius)),
             height: 0,
@@ -536,26 +354,6 @@ export function CesiumGlobe({
             outlineWidth: selected ? 3 : 1,
           },
         });
-
-        // Member count, sitting on the tower's apex, so a grouped tower is never
-        // mistaken for one enormous account.
-        if (grouped) {
-          towersDataSource!.entities.add({
-            id: `${id}-count`,
-            position: Cesium.Cartesian3.fromDegrees(group.longitude, group.latitude, height),
-            label: {
-              text: group.members.length.toLocaleString(),
-              font: "bold 14px 'DM Sans', sans-serif",
-              fillColor: Cesium.Color.fromCssColorString(cssColorString("--color-text")).withAlpha(progress),
-              style: Cesium.LabelStyle.FILL,
-              verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
-              horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
-              pixelOffset: new Cesium.Cartesian2(0, TOWER_LABEL_PIXEL_OFFSET),
-              heightReference: Cesium.HeightReference.RELATIVE_TO_GROUND,
-              disableDepthTestDistance: Number.POSITIVE_INFINITY,
-            },
-          });
-        }
 
         // Selection indicator for a settled tower — a pulsing ring at its
         // ground anchor, not an outline change (color/height already carry the
@@ -608,9 +406,9 @@ export function CesiumGlobe({
       }
     }
 
-    // The camera listener redraws towers alone — location pins and flat dots
-    // are camera-independent, and rebuilding them on every zoom tick would
-    // reset their pulse for no reason.
+    // The camera listener redraws towers alone — location pins are
+    // camera-independent, and rebuilding them on every zoom tick would reset
+    // their pulse for no reason.
     renderTowersRef.current = () => renderTowers(progressRef.current);
 
     renderLocationPins();
@@ -620,11 +418,9 @@ export function CesiumGlobe({
 
     // Skip the RAF loop entirely when there's nothing to animate (the common
     // case — most renders aren't a flat/tower transition). Running it
-    // unconditionally rebuilt every entity from scratch on every frame for
-    // 550ms even when startProgress === targetProgress, which read as pins
-    // flickering color/size/position off their anchors.
+    // unconditionally rebuilt every tower from scratch on every frame for 550ms
+    // even when startProgress === targetProgress, which read as flickering.
     if (startProgress === targetProgress) {
-      renderDots(startProgress);
       renderTowers(startProgress);
       return;
     }
@@ -636,7 +432,6 @@ export function CesiumGlobe({
       const linear = Math.min(1, (now - startTime) / TOWER_TRANSITION_DURATION_MS);
       const value = startProgress + (targetProgress - startProgress) * easeOutCubic(linear);
       progressRef.current = value;
-      renderDots(value);
       renderTowers(value);
       if (linear < 1) {
         animationFrame = requestAnimationFrame(tick);
