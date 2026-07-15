@@ -152,15 +152,6 @@ function insertOfficeLocationsParams(account: Account): unknown[] {
   });
 }
 
-function evidenceReferenceToJson(evidence: { kind: string; referenceId?: string; excerpt?: string; locator?: string }): EvidenceReferenceJson {
-  return {
-    kind: evidence.kind,
-    referenceId: evidence.referenceId ?? null,
-    excerpt: evidence.excerpt ?? null,
-    locator: evidence.locator ?? null,
-  };
-}
-
 function temperatureAssessmentFromJson(json: TemperatureAssessmentJson): TemperatureAssessment {
   return TemperatureAssessment.of({
     id: asTemperatureAssessmentId(json.id),
@@ -180,20 +171,6 @@ function temperatureAssessmentFromJson(json: TemperatureAssessmentJson): Tempera
     confidence: ConfidenceScore.of(json.confidence),
     nextAction: json.nextAction ?? undefined,
   });
-}
-
-function temperatureAssessmentToJson(assessment: TemperatureAssessment): TemperatureAssessmentJson {
-  return {
-    id: assessment.id,
-    accountId: assessment.accountId,
-    band: assessment.band,
-    rationale: assessment.rationale,
-    evidence: assessment.evidence.map(evidenceReferenceToJson),
-    assessedAt: assessment.assessedAt.toISOString(),
-    assessedBy: assessment.assessedBy,
-    confidence: assessment.confidence.toNumber(),
-    nextAction: assessment.nextAction ?? null,
-  };
 }
 
 function externalReferenceFromJson(json: ExternalReferenceJson): ExternalReference {
@@ -231,24 +208,62 @@ function rowToAccount(row: AccountRow): Account {
   }
 }
 
+/**
+ * linked_signal_ids and latest_temperature/temperature_band are no longer
+ * columns on accounts (migrations/019_canonicalize_account_signal_links.sql,
+ * migrations/020_canonicalize_temperature_assessments.sql) — account_signals
+ * and temperature_assessments are now the sole sources of truth, matching
+ * Account's own framing of these as a "denormalized read convenience".
+ * Computed here on every read so the row still matches what rowToAccount
+ * expects; save() no longer writes either column.
+ */
+const ACCOUNT_COMPUTED_COLUMNS = `
+  COALESCE(
+    (SELECT jsonb_agg(account_signals.signal_id) FROM account_signals WHERE account_signals.account_id = accounts.id),
+    '[]'::jsonb
+  ) AS linked_signal_ids,
+  (
+    SELECT jsonb_build_object(
+      'id', ta.id,
+      'accountId', ta.account_id,
+      'band', ta.band,
+      'rationale', ta.rationale,
+      'evidence', ta.evidence,
+      'assessedAt', ta.assessed_at,
+      'assessedBy', ta.assessed_by,
+      'confidence', ta.confidence,
+      'nextAction', ta.next_action
+    )
+    FROM temperature_assessments ta
+    WHERE ta.account_id = accounts.id
+    ORDER BY ta.assessed_at DESC, ta.created_at DESC, ta.id DESC
+    LIMIT 1
+  ) AS latest_temperature
+`;
+
 /** Satisfies IAccountRepository. No ORM — plain parameterised SQL against the accounts table (see migrations/001_create_accounts.sql). */
 export class PostgresAccountRepository implements IAccountRepository {
   constructor(private readonly pool: Pool) {}
 
   async findById(id: AccountId): Promise<Account | null> {
-    const { rows } = await this.pool.query<AccountRow>("SELECT * FROM accounts WHERE id = $1", [id]);
+    const { rows } = await this.pool.query<AccountRow>(
+      `SELECT accounts.*, ${ACCOUNT_COMPUTED_COLUMNS} FROM accounts WHERE id = $1`,
+      [id],
+    );
     const [row] = rows;
     return row ? rowToAccount(row) : null;
   }
 
   async findAll(): Promise<Account[]> {
-    const { rows } = await this.pool.query<AccountRow>("SELECT * FROM accounts ORDER BY name");
+    const { rows } = await this.pool.query<AccountRow>(
+      `SELECT accounts.*, ${ACCOUNT_COMPUTED_COLUMNS} FROM accounts ORDER BY name`,
+    );
     return rows.map(rowToAccount);
   }
 
   async findAllWithCoordinates(): Promise<Account[]> {
     const { rows } = await this.pool.query<AccountRow>(`
-      SELECT DISTINCT accounts.*
+      SELECT DISTINCT accounts.*, ${ACCOUNT_COMPUTED_COLUMNS}
       FROM accounts
       JOIN account_office_locations ON account_office_locations.account_id = accounts.id
       WHERE account_office_locations.point IS NOT NULL
@@ -261,7 +276,7 @@ export class PostgresAccountRepository implements IAccountRepository {
   async findWithinRadius(center: Coordinate, radiusMeters: number): Promise<Account[]> {
     const { rows } = await this.pool.query<AccountRow>(
       `
-      SELECT DISTINCT accounts.*
+      SELECT DISTINCT accounts.*, ${ACCOUNT_COMPUTED_COLUMNS}
       FROM accounts
       JOIN account_office_locations ON account_office_locations.account_id = accounts.id
       WHERE account_office_locations.point IS NOT NULL
@@ -286,9 +301,8 @@ export class PostgresAccountRepository implements IAccountRepository {
         `
         INSERT INTO accounts (
           id, name, account_type, status, geographic_scope, office_locations,
-          linked_theme_ids, linked_signal_ids, latest_temperature, temperature_band,
-          external_references, updated_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, now())
+          linked_theme_ids, external_references, updated_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now())
         ON CONFLICT (id) DO UPDATE SET
           name = EXCLUDED.name,
           account_type = EXCLUDED.account_type,
@@ -296,9 +310,6 @@ export class PostgresAccountRepository implements IAccountRepository {
           geographic_scope = EXCLUDED.geographic_scope,
           office_locations = EXCLUDED.office_locations,
           linked_theme_ids = EXCLUDED.linked_theme_ids,
-          linked_signal_ids = EXCLUDED.linked_signal_ids,
-          latest_temperature = EXCLUDED.latest_temperature,
-          temperature_band = EXCLUDED.temperature_band,
           external_references = EXCLUDED.external_references,
           updated_at = now()
         `,
@@ -314,9 +325,6 @@ export class PostgresAccountRepository implements IAccountRepository {
           }),
           JSON.stringify(account.officeLocations.map(officeLocationToJson)),
           JSON.stringify(account.linkedThemeIds),
-          JSON.stringify(account.linkedSignalIds),
-          account.latestTemperature ? JSON.stringify(temperatureAssessmentToJson(account.latestTemperature)) : null,
-          account.latestTemperature?.band ?? null,
           JSON.stringify(account.externalReferences.map(externalReferenceToJson)),
         ],
       );
