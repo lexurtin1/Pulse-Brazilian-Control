@@ -51,6 +51,17 @@ const LOCATION_KIND_COLOR_VAR: Record<string, string> = {
   Other: "--color-text-faint",
 };
 
+// SignalLocation pins are auto-derived from signals and pile up densely in the
+// same metros (mostly Sao Paulo), where they overlap into an unreadable cluster
+// of pale dots. They are kept off the map; only hand-placed locations
+// (Office/Event/Visit/Other) render. This is the filter for both the Cesium
+// entities and the accessible pin list, so the two never disagree.
+const MAP_HIDDEN_LOCATION_KINDS = new Set(["SignalLocation"]);
+
+function isMappableLocationPin(pin: LocationRecordMapPinDto): boolean {
+  return !MAP_HIDDEN_LOCATION_KINDS.has(pin.kind);
+}
+
 // Cesium.Color.fromCssColorString takes a CSS color string directly — no
 // need for BrazilMap's [r,g,b] array conversion (deck.gl-specific).
 function cssColorString(varName: string): string {
@@ -384,6 +395,7 @@ export function CesiumGlobe({
     function renderLocationPins() {
       locationsDataSource!.entities.removeAll();
       for (const pin of locationPins) {
+        if (!isMappableLocationPin(pin)) continue;
         const fillColor = Cesium.Color.fromCssColorString(cssColorString(LOCATION_KIND_COLOR_VAR[pin.kind] ?? "--color-text-faint"));
         const phase = stablePhase(pin.id);
 
@@ -489,7 +501,7 @@ export function CesiumGlobe({
             {pin.name}
           </button>
         ))}
-        {locationPins.map((pin) => (
+        {locationPins.filter(isMappableLocationPin).map((pin) => (
           <button
             key={pin.id}
             type="button"
