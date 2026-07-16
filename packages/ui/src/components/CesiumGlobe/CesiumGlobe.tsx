@@ -90,17 +90,16 @@ const LOCATION_PIN_BASE_SIZE = 26;
 
 const LOCATION_PIN_OUTLINE_WIDTH = 3;
 
-// Pins sit on the ellipsoid, NOT clamped to terrain — do not "fix" this back to
-// CLAMP_TO_GROUND. Clamping makes Cesium sample world terrain for each pin's
-// height, and that sample is recomputed as terrain tiles stream in and swap LOD
-// during a zoom or pan, so the pin's anchor keeps moving underneath it. That is
-// what read as dots flickering, popping and jumping around.
+// Location pins are clamped to the terrain surface so they stay planted on the
+// ground when the camera tilts, instead of floating at sea level above elevated
+// terrain (which read as the pins drifting across the map as you pan/orbit).
 //
-// Clamping bought nothing anyway: disableDepthTestDistance is POSITIVE_INFINITY
-// on every pin, so they already draw on top of all geometry regardless of depth.
-// We were paying for a terrain height we then deliberately ignored. On the
-// ellipsoid the anchor is a fixed number that no tile load can move.
-const PIN_HEIGHT_REFERENCE = Cesium.HeightReference.NONE;
+// The accepted tradeoff: with CLAMP_TO_GROUND, Cesium resamples each pin's
+// terrain height as tiles stream in and swap LOD during a zoom, so a pin can
+// jitter/pop slightly while new terrain loads. We take that over the float.
+// disableDepthTestDistance is POSITIVE_INFINITY on every pin, so they still draw
+// on top of all geometry regardless of depth.
+const PIN_HEIGHT_REFERENCE = Cesium.HeightReference.CLAMP_TO_GROUND;
 
 // "Feel alive": every location pin gently breathes (size oscillation) on a loop
 // rather than sitting dead-still. Each pin gets a stable per-id phase offset
