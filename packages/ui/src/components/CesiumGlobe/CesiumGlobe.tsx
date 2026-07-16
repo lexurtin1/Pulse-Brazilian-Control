@@ -192,6 +192,11 @@ export function CesiumGlobe({
   // pins/selection/progress. It reaches the latest closure through this ref
   // rather than by re-subscribing on every data change.
   const renderTowersRef = useRef<(() => void) | null>(null);
+  // World terrain streams in asynchronously after the viewer mounts. Location
+  // pins sample terrain height to sit on the surface, so their render must wait
+  // for this to resolve — otherwise the sample runs against the ellipsoid
+  // placeholder, comes back at sea level, and the pins float and drift.
+  const terrainReadyRef = useRef<Promise<Cesium.TerrainProvider> | null>(null);
   const [hoverInfo, setHoverInfo] = useState<HoverInfo | null>(null);
 
   useEffect(() => {
@@ -200,8 +205,19 @@ export function CesiumGlobe({
     const token = import.meta.env.VITE_CESIUM_ION_TOKEN as string | undefined;
     if (token) Cesium.Ion.defaultAccessToken = token;
 
+    const worldTerrain = Cesium.Terrain.fromWorldTerrain();
+    // Resolves with the real terrain provider once it has streamed in. Location
+    // pins await this before sampling height (see terrainReadyRef / renderLocationPins).
+    terrainReadyRef.current = new Promise<Cesium.TerrainProvider>((resolve) => {
+      if (worldTerrain.ready) {
+        resolve(worldTerrain.provider);
+        return;
+      }
+      worldTerrain.readyEvent.addEventListener((provider) => resolve(provider));
+    });
+
     const viewer = new Cesium.Viewer(containerRef.current, {
-      terrain: Cesium.Terrain.fromWorldTerrain(),
+      terrain: worldTerrain,
       baseLayer: Cesium.ImageryLayer.fromProviderAsync(Cesium.createWorldImageryAsync(), {}),
       animation: false,
       timeline: false,
@@ -300,6 +316,7 @@ export function CesiumGlobe({
       viewerRef.current = null;
       towersDataSourceRef.current = null;
       locationsDataSourceRef.current = null;
+      terrainReadyRef.current = null;
     };
   }, []);
 
@@ -406,10 +423,14 @@ export function CesiumGlobe({
         Cesium.Cartographic.fromDegrees(pin.coordinate.longitude, pin.coordinate.latitude),
       );
       try {
-        await Cesium.sampleTerrainMostDetailed(viewer!.terrainProvider, cartographics);
+        // Wait for world terrain to finish streaming in before sampling, so the
+        // heights are real ground elevations rather than the ellipsoid placeholder's 0.
+        const terrainProvider = await terrainReadyRef.current;
+        if (cancelled) return;
+        if (terrainProvider) await Cesium.sampleTerrainMostDetailed(terrainProvider, cartographics);
       } catch {
-        // Terrain unavailable (or still an ellipsoid placeholder): the sampled
-        // heights stay 0, so the pins simply sit on the ellipsoid this pass.
+        // Terrain unavailable: the sampled heights stay 0, so the pins simply
+        // sit on the ellipsoid this pass.
       }
       // The effect may have been torn down (or re-run with new data) while we
       // were awaiting the async terrain sample — don't populate a stale layer.
