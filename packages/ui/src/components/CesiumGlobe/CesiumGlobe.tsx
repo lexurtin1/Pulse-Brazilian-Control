@@ -90,16 +90,17 @@ const LOCATION_PIN_BASE_SIZE = 26;
 
 const LOCATION_PIN_OUTLINE_WIDTH = 3;
 
-// Location pins are clamped to the terrain surface so they stay planted on the
-// ground when the camera tilts, instead of floating at sea level above elevated
-// terrain (which read as the pins drifting across the map as you pan/orbit).
-//
-// The accepted tradeoff: with CLAMP_TO_GROUND, Cesium resamples each pin's
-// terrain height as tiles stream in and swap LOD during a zoom, so a pin can
-// jitter/pop slightly while new terrain loads. We take that over the float.
-// disableDepthTestDistance is POSITIVE_INFINITY on every pin, so they still draw
-// on top of all geometry regardless of depth.
-const PIN_HEIGHT_REFERENCE = Cesium.HeightReference.CLAMP_TO_GROUND;
+// Location pins anchor with NONE, but at a position whose height was sampled
+// from the terrain ONCE (see renderLocationPins) rather than at sea level. This
+// is the middle path between the two failure modes on a 3D-terrain globe:
+//   - NONE at height 0 keeps a fixed anchor but floats above elevated terrain,
+//     so pins appear to drift across the map when the camera tilts.
+//   - CLAMP_TO_GROUND sits on the terrain but re-samples height as tiles stream
+//     in during a zoom, so pins jitter/pop.
+// Baking the sampled height into a NONE anchor gives a pin that sits on the 3D
+// surface at its own coordinate AND never moves once placed. disableDepthTest-
+// Distance is POSITIVE_INFINITY on every pin, so they still draw on top.
+const PIN_HEIGHT_REFERENCE = Cesium.HeightReference.NONE;
 
 // "Feel alive": every location pin gently breathes (size oscillation) on a loop
 // rather than sitting dead-still. Each pin gets a stable per-id phase offset
@@ -391,16 +392,38 @@ export function CesiumGlobe({
       }
     }
 
-    function renderLocationPins() {
+    async function renderLocationPins() {
       locationsDataSource!.entities.removeAll();
-      for (const pin of locationPins) {
-        if (!isMappableLocationPin(pin)) continue;
+      const mappable = locationPins.filter(isMappableLocationPin);
+      if (mappable.length === 0) return;
+
+      // Sample each pin's terrain height ONCE, bake it into a fixed position, and
+      // anchor with HeightReference.NONE (see PIN_HEIGHT_REFERENCE). This lands
+      // the dot on the 3D terrain surface at its own coordinate — so it neither
+      // floats at sea level and drifts when the camera tilts, nor re-samples per
+      // frame and jitters as terrain tiles stream in.
+      const cartographics = mappable.map((pin) =>
+        Cesium.Cartographic.fromDegrees(pin.coordinate.longitude, pin.coordinate.latitude),
+      );
+      try {
+        await Cesium.sampleTerrainMostDetailed(viewer!.terrainProvider, cartographics);
+      } catch {
+        // Terrain unavailable (or still an ellipsoid placeholder): the sampled
+        // heights stay 0, so the pins simply sit on the ellipsoid this pass.
+      }
+      // The effect may have been torn down (or re-run with new data) while we
+      // were awaiting the async terrain sample — don't populate a stale layer.
+      if (cancelled) return;
+
+      mappable.forEach((pin, index) => {
+        const carto = cartographics[index];
+        if (!carto) return;
         const fillColor = Cesium.Color.fromCssColorString(cssColorString(LOCATION_KIND_COLOR_VAR[pin.kind] ?? "--color-text-faint"));
         const phase = stablePhase(pin.id);
 
         locationsDataSource!.entities.add({
           id: `location-pin-${pin.id}`,
-          position: Cesium.Cartesian3.fromDegrees(pin.coordinate.longitude, pin.coordinate.latitude),
+          position: Cesium.Cartesian3.fromRadians(carto.longitude, carto.latitude, carto.height),
           properties: { locationPinId: pin.id },
           point: {
             pixelSize: new Cesium.CallbackProperty(
@@ -414,15 +437,20 @@ export function CesiumGlobe({
             heightReference: PIN_HEIGHT_REFERENCE,
           },
         });
-      }
+      });
     }
+
+    // Set true by the cleanup so the async terrain sample in renderLocationPins
+    // knows not to populate a torn-down or superseded layer.
+    let cancelled = false;
+    let animationFrame: number | null = null;
 
     // The camera listener redraws towers alone — location pins are
     // camera-independent, and rebuilding them on every zoom tick would reset
     // their pulse for no reason.
     renderTowersRef.current = () => renderTowers(progressRef.current);
 
-    renderLocationPins();
+    void renderLocationPins();
 
     const startProgress = progressRef.current;
     const targetProgress = viewMode === "tower" ? 1 : 0;
@@ -433,24 +461,23 @@ export function CesiumGlobe({
     // even when startProgress === targetProgress, which read as flickering.
     if (startProgress === targetProgress) {
       renderTowers(startProgress);
-      return;
-    }
+    } else {
+      const startTime = performance.now();
 
-    let animationFrame: number | null = null;
-    const startTime = performance.now();
-
-    function tick(now: number) {
-      const linear = Math.min(1, (now - startTime) / TOWER_TRANSITION_DURATION_MS);
-      const value = startProgress + (targetProgress - startProgress) * easeOutCubic(linear);
-      progressRef.current = value;
-      renderTowers(value);
-      if (linear < 1) {
-        animationFrame = requestAnimationFrame(tick);
-      }
+      const tick = (now: number) => {
+        const linear = Math.min(1, (now - startTime) / TOWER_TRANSITION_DURATION_MS);
+        const value = startProgress + (targetProgress - startProgress) * easeOutCubic(linear);
+        progressRef.current = value;
+        renderTowers(value);
+        if (linear < 1) {
+          animationFrame = requestAnimationFrame(tick);
+        }
+      };
+      animationFrame = requestAnimationFrame(tick);
     }
-    animationFrame = requestAnimationFrame(tick);
 
     return () => {
+      cancelled = true;
       if (animationFrame !== null) cancelAnimationFrame(animationFrame);
     };
   }, [pins, locationPins, selectedAccountId, viewMode]);
