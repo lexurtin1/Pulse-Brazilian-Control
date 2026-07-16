@@ -5,16 +5,14 @@ import type {
   AccountSummaryDto,
   ActiveAccountsSummaryDto,
   DashboardFreshnessDto,
-  LocationRecordMapPinDto,
   PipelineSummaryDto,
   SignalDto,
   TopOpenDealsResultDto,
 } from "@pulse-brazil/application";
-import { CesiumGlobe, type MapViewMode } from "./components/CesiumGlobe/CesiumGlobe";
+import { CesiumGlobe } from "./components/CesiumGlobe/CesiumGlobe";
 import { MapLegend } from "./components/MapLegend/MapLegend";
 import { CreateAccountFAB } from "./components/CreateAccountFAB/CreateAccountFAB";
 import { AccountDossier } from "./components/AccountDossier/AccountDossier";
-import { LocationPinDetail } from "./components/LocationPinDetail/LocationPinDetail";
 import { EntryAnimation } from "./components/EntryAnimation/EntryAnimation";
 import { CommandHeader } from "./components/CommandCentre/CommandHeader";
 import { KpiCard } from "./components/CommandCentre/KpiCard";
@@ -26,7 +24,6 @@ import {
   fetchAccounts,
   fetchActiveAccountsSummary,
   fetchDashboardFreshness,
-  fetchLocationMapPins,
   fetchPipelineSummary,
   fetchRecentSignals,
   fetchTopOpenDeals,
@@ -53,10 +50,8 @@ const shellItemVariants = {
 export function App() {
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
   const [dossierAccountId, setDossierAccountId] = useState<string | null>(null);
-  const [selectedLocationPin, setSelectedLocationPin] = useState<LocationRecordMapPinDto | null>(null);
   const [accounts, setAccounts] = useState<AccountSummaryDto[]>([]);
   const [mapPins, setMapPins] = useState<AccountMapPinDto[]>([]);
-  const [locationPins, setLocationPins] = useState<LocationRecordMapPinDto[]>([]);
   const [signals, setSignals] = useState<SignalDto[]>([]);
   const [pipelineSummary, setPipelineSummary] = useState<PipelineSummaryDto | null>(null);
   const [activeAccountsSummary, setActiveAccountsSummary] = useState<ActiveAccountsSummaryDto | null>(null);
@@ -64,7 +59,6 @@ export function App() {
   const [dashboardFreshness, setDashboardFreshness] = useState<DashboardFreshnessDto | null>(null);
   const [status, setStatus] = useState<LoadState>("loading");
   const [hiddenClientTypes, setHiddenClientTypes] = useState<ReadonlySet<string | undefined>>(() => new Set());
-  const [mapViewMode, setMapViewMode] = useState<MapViewMode>("flat");
   const [introDone, setIntroDone] = useState(() => sessionStorage.getItem(INTRO_SESSION_KEY) === "1");
   const mapWrapRef = useRef<HTMLDivElement>(null);
 
@@ -75,7 +69,6 @@ export function App() {
       fetchAccounts(),
       fetchAccountMapPins(),
       fetchRecentSignals(),
-      fetchLocationMapPins(),
       fetchPipelineSummary(),
       fetchTopOpenDeals(),
       fetchActiveAccountsSummary(),
@@ -86,7 +79,6 @@ export function App() {
           accountsResult,
           mapPinsResult,
           signalsResult,
-          locationPinsResult,
           pipelineSummaryResult,
           topOpenDealsResult,
           activeAccountsSummaryResult,
@@ -96,7 +88,6 @@ export function App() {
           setAccounts(accountsResult);
           setMapPins(mapPinsResult);
           setSignals(signalsResult);
-          setLocationPins(locationPinsResult);
           setPipelineSummary(pipelineSummaryResult);
           setTopOpenDeals(topOpenDealsResult);
           setActiveAccountsSummary(activeAccountsSummaryResult);
@@ -112,14 +103,6 @@ export function App() {
     return () => {
       cancelled = true;
     };
-  }, []);
-
-  // After a CSV import, re-fetch just the location pins so newly uploaded
-  // records show up without a full page reload.
-  const refreshLocationPins = useCallback(() => {
-    fetchLocationMapPins()
-      .then(setLocationPins)
-      .catch((error) => console.error("Failed to refresh location pins", error));
   }, []);
 
   // After a document ingest, re-fetch the signal feed so newly extracted
@@ -170,12 +153,11 @@ export function App() {
   // didn't touch is cheap and harmless, and keeps UploadFAB from needing to
   // know which backend path it took.
   const refreshAfterUpload = useCallback(() => {
-    refreshLocationPins();
     refreshSignals();
     refreshPipeline();
     refreshActiveAccountsSummary();
     refreshFreshness();
-  }, [refreshLocationPins, refreshSignals, refreshPipeline, refreshActiveAccountsSummary, refreshFreshness]);
+  }, [refreshSignals, refreshPipeline, refreshActiveAccountsSummary, refreshFreshness]);
 
   // After creating an account, re-fetch the account list so it's available
   // wherever accounts are listed (e.g. UploadFAB's "link to account" select).
@@ -295,19 +277,14 @@ export function App() {
                 <div ref={mapWrapRef} className="app-shell__map-live">
                   <CesiumGlobe
                     pins={visibleMapPins}
-                    locationPins={locationPins}
                     selectedAccountId={selectedAccountId}
-                    viewMode={mapViewMode}
                     onSelectAccount={handleSelectAccount}
-                    onSelectLocationPin={setSelectedLocationPin}
                   />
                 </div>
                 <MapLegend
                   pins={mapPins}
                   hiddenClientTypes={hiddenClientTypes}
                   onToggleClientType={toggleClientType}
-                  viewMode={mapViewMode}
-                  onChangeViewMode={setMapViewMode}
                 />
               </div>
             </motion.div>
@@ -330,14 +307,6 @@ export function App() {
       </motion.div>
       {showIntro && <EntryAnimation mapRef={mapWrapRef} onComplete={() => setIntroDone(true)} />}
       <AccountDossier accountId={dossierAccountId} onClose={() => setDossierAccountId(null)} />
-      <LocationPinDetail
-        pin={selectedLocationPin}
-        onClose={() => setSelectedLocationPin(null)}
-        onSelectAccount={(accountId) => {
-          setSelectedLocationPin(null);
-          handleSelectAccount(accountId);
-        }}
-      />
     </>
   );
 }

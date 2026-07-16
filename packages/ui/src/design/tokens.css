@@ -61,7 +61,13 @@
      ClientType on file) use --color-text-faint, not an 8th hue — "no data"
      isn't a category. */
   --color-client-distributor: #0095c3;
-  --color-client-fundmanager: #00969f;
+  /* Deliberately a violet, not another cyan/teal: distributor and fund manager
+     are the two most common client types on the map, so they get separated hue
+     families rather than adjacent steps that read as the same color at a glance. Depth matters as much as hue — a lighter violet clears
+     distributor but collides with --color-client-bank under deuteranopia, where
+     both collapse toward blue. This step keeps every pair >=0.10 OKLab dE across
+     normal/deuteranope/protanope vision. */
+  --color-client-fundmanager: #6b3fc9;
   --color-client-bank: #437eda;
   --color-client-tpa: #009a7e;
   --color-client-softwarevendor: #c45d41;
@@ -78,16 +84,6 @@
   --color-calastone-blue: #1f6fa8;
   --color-calastone-teal: #1f8288;
   --color-calastone-green: #4a8038;
-
-  /* Pipeline value ramp — map Tower view's height+color encoding (see
-     grilling session). Diverging structure (two hues + neutral gray
-     midpoint, per the dataviz skill), reusing already-validated tokens
-     rather than inventing new hex: low = --color-calastone-teal, high =
-     --color-temp-warm (already cleared 4.5:1 as label text). Interpolated
-     in OKLCH at runtime — see utils/pipelineValueScale.ts. */
-  --color-value-low: #1f8288;
-  --color-value-mid: #8a8f92;
-  --color-value-high: #82591c;
 
   /* Signal-type chip colors — one pair per real SignalType enum value. The
      6 market-sweep topics (RegulatoryChange, CompetitiveIntelligence,
@@ -236,7 +232,14 @@
     /* Client-type categorical palette — same seven hues, restepped for the
        dark surface and revalidated (all-pairs CVD + >=3:1 contrast). */
     --color-client-distributor: #0098be;
-    --color-client-fundmanager: #009ea5;
+    /* Violet, brightened for the dark surface — see the light-mode note on why
+       fund manager sits in a separate hue family from distributor. Light mode
+       separates the two by going darker; on a dark surface that would cost
+       contrast, so this goes lighter instead. Either way the violet needs its
+       own lightness lane, not just its own hue: distributor and bank sit at
+       L~0.63 here, and a violet at the same lightness is indistinguishable from
+       both once CVD collapses the hue. */
+    --color-client-fundmanager: #c0a6ff;
     --color-client-bank: #4f85d9;
     --color-client-tpa: #00a086;
     --color-client-softwarevendor: #cc6346;
@@ -247,11 +250,6 @@
     --color-calastone-blue: #4793ce;
     --color-calastone-teal: #39969c;
     --color-calastone-green: #60974f;
-
-    /* Pipeline value ramp — same poles as --color-calastone-teal/--color-temp-warm's dark steps */
-    --color-value-low: #39969c;
-    --color-value-mid: #9a9890;
-    --color-value-high: #d9a34a;
 
     /* Signal-type chip colors — same distinct hue families as light mode,
        restepped bright-text/dark-bg for the dark surface. */
