@@ -177,7 +177,23 @@ Data Contract facts (confirmed 2026-07-13):
   is ever wanted, not now).
 
 Decisions specific to this feature (grilled 2026-07-13):
-- CSV only (no `.xlsx` parsing dependency) — re-export from Salesforce as CSV.
+- ~~CSV only (no `.xlsx` parsing dependency) — re-export from Salesforce as CSV.~~
+  **Superseded 2026-08-24**: `.xlsx`/`.xlsm` upload is supported, and still
+  without a parsing dependency — `packages/ui/src/utils/xlsx.ts` reads the
+  workbook directly (an `.xlsx` is a ZIP of XML; inflating uses the
+  platform's `DecompressionStream`). Excel uploads are converted to the same
+  CSV text and routed by the same `looksLikePipelineCsv` header sniff, so
+  there is still exactly one import path. The reader handles Salesforce's
+  *formatted report* export shape, not just a flat sheet: the header row is
+  located wherever it falls (under the title/"Filtered By" preamble), blank
+  spacer columns are dropped, sort arrows are stripped from header labels,
+  Subtotal/Count/Grand Total grouping rows are discarded, Excel date serials
+  are rendered `DD/MM/YYYY`, and percent-formatted fractions are scaled to
+  0-100. Verified against the real `All Brazil Accounts` xlsx export (44 of
+  44 account rows recovered, zero grouping rows leaked) and, for pipeline
+  specifically, by round-tripping `Open Brazil Pipeline All Time
+  2026-07-13.csv` through a Salesforce-shaped workbook: 60 of 60 deals
+  imported field-for-field identical to the CSV path.
 - Stage shown verbatim as the real Salesforce stage name — no mapping to a
   generic early/mid/late/hot bucket.
 - Currency assumed BRL throughout.

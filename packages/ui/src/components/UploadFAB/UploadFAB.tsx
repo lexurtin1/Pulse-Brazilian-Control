@@ -7,10 +7,11 @@ import type {
   ImportPipelineCsvResultDto,
   ProcessDocumentUploadResultDto,
 } from "@pulse-brazil/application";
-import { looksLikePipelineCsv, parseCsv } from "@pulse-brazil/application";
+import { looksLikePipelineCsv, parseCsv, validateLocationCsvHeaders } from "@pulse-brazil/application";
 import { importLocationCsv, importPipelineCsv, ingestDocument } from "../../api/client";
 import { useDialogA11y } from "../../hooks/useDialogA11y";
 import { formatEnumLabel } from "../../utils/formatEnumLabel";
+import { xlsxToCsvText } from "../../utils/xlsx";
 import "./UploadFAB.css";
 
 interface UploadFABProps {
@@ -43,6 +44,24 @@ function readFileAsBase64(file: File): Promise<string> {
   });
 }
 
+interface TabularUpload {
+  kind: "location" | "pipeline";
+  csvText: string;
+}
+
+/** Formats that go to a row importer rather than to Claude's document reader. */
+const SPREADSHEET_EXTENSIONS = [".csv", ".xlsx", ".xlsm"];
+
+function isSpreadsheet(filename: string): boolean {
+  const lowerName = filename.toLowerCase();
+  return SPREADSHEET_EXTENSIONS.some((extension) => lowerName.endsWith(extension));
+}
+
+/** Both spreadsheet contracts the importers understand — used to find the header row inside an Excel report. */
+function isKnownTabularHeader(headers: string[]): boolean {
+  return looksLikePipelineCsv(headers) || validateLocationCsvHeaders(headers).length === 0;
+}
+
 /**
  * Real Pipeline CSV exports from Salesforce are Windows-1252/Latin-1, not
  * UTF-8 — decoding as UTF-8 corrupts accented account names (e.g. "Itaú").
@@ -51,7 +70,7 @@ function readFileAsBase64(file: File): Promise<string> {
  * for the text actually sent to the importer. Location CSVs are unaffected,
  * decoded as UTF-8 as before.
  */
-async function readCsvFile(file: File): Promise<{ kind: "location" | "pipeline"; csvText: string }> {
+async function readCsvFile(file: File): Promise<TabularUpload> {
   const buffer = await file.arrayBuffer();
   const utf8Text = new TextDecoder("utf-8").decode(buffer);
   const { headers } = parseCsv(utf8Text);
@@ -59,6 +78,18 @@ async function readCsvFile(file: File): Promise<{ kind: "location" | "pipeline";
     return { kind: "pipeline", csvText: new TextDecoder("windows-1252").decode(buffer) };
   }
   return { kind: "location", csvText: utf8Text };
+}
+
+/**
+ * Excel uploads join the CSV path rather than getting their own: the sheet
+ * is converted to the same CSV text and routed by the same header sniff, so
+ * one file format decision — not two — decides how a pipeline import
+ * behaves. No encoding dance here; xlsx XML is always UTF-8.
+ */
+async function readXlsxFile(file: File): Promise<TabularUpload> {
+  const csvText = await xlsxToCsvText(await file.arrayBuffer(), isKnownTabularHeader);
+  const { headers } = parseCsv(csvText);
+  return { kind: looksLikePipelineCsv(headers) ? "pipeline" : "location", csvText };
 }
 
 export function UploadFAB({ accountsForLinking, onImported, variant = "fab" }: UploadFABProps) {
@@ -103,10 +134,15 @@ export function UploadFAB({ accountsForLinking, onImported, variant = "fab" }: U
 
     const lowerName = file.name.toLowerCase();
     const isCsv = lowerName.endsWith(".csv");
+    const isExcel = lowerName.endsWith(".xlsx") || lowerName.endsWith(".xlsm");
     const isPdf = lowerName.endsWith(".pdf");
     const isText = lowerName.endsWith(".txt") || lowerName.endsWith(".md");
-    if (!isCsv && !isPdf && !isText) {
-      setSubmitError("Only .csv, .txt, .md, and .pdf files can be uploaded right now.");
+    if (lowerName.endsWith(".xls")) {
+      setSubmitError("This is the older .xls format — re-save it as .xlsx from Excel and upload that.");
+      return;
+    }
+    if (!isCsv && !isExcel && !isPdf && !isText) {
+      setSubmitError("Only .csv, .xlsx, .txt, .md, and .pdf files can be uploaded right now.");
       return;
     }
 
@@ -117,8 +153,8 @@ export function UploadFAB({ accountsForLinking, onImported, variant = "fab" }: U
     setSubmitResult(null);
 
     try {
-      if (isCsv) {
-        const { kind, csvText } = await readCsvFile(file);
+      if (isCsv || isExcel) {
+        const { kind, csvText } = isExcel ? await readXlsxFile(file) : await readCsvFile(file);
         if (kind === "pipeline") {
           const data = await importPipelineCsv({ csvText, originalFilename: file.name });
           setSubmitResult({ kind: "pipeline", data });
@@ -208,7 +244,7 @@ export function UploadFAB({ accountsForLinking, onImported, variant = "fab" }: U
                 <p>{file?.name ?? "Drag a file here, or click to browse"}</p>
                 <input
                   type="file"
-                  accept=".csv,text/csv,.txt,text/plain,.md,.pdf,application/pdf"
+                  accept=".csv,text/csv,.xlsx,.xlsm,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,.txt,text/plain,.md,.pdf,application/pdf"
                   className="upload-sheet__file-input"
                   aria-label="Choose file"
                   onChange={(event) => {
@@ -220,13 +256,15 @@ export function UploadFAB({ accountsForLinking, onImported, variant = "fab" }: U
                 />
               </div>
 
-              {file?.name.toLowerCase().endsWith(".csv") && (
+              {file && isSpreadsheet(file.name) && (
                 <p className="upload-sheet__hint">
-                  CSV files are imported directly — whether this is Brazil location data or Salesforce pipeline data is
-                  detected automatically from its columns. Source type and account link below aren't used for this format.
+                  CSV and Excel files are imported directly — whether this is Brazil location data or Salesforce pipeline
+                  data is detected automatically from its columns. In an Excel export the header row is found wherever
+                  Salesforce put it, so a report's title block and subtotal rows are skipped rather than imported. Source
+                  type and account link below aren't used for this format.
                 </p>
               )}
-              {file && !file.name.toLowerCase().endsWith(".csv") && (
+              {file && !isSpreadsheet(file.name) && (
                 <p className="upload-sheet__hint">
                   Claude will read this document and extract signals for accounts already in Pulse — it won't create new
                   accounts, and anything it can't match to an existing account is reported, not guessed at.
