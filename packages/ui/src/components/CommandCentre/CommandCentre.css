@@ -154,7 +154,12 @@
   gap: var(--space-3);
 }
 
-.rail-card--live-feed {
+/* Both rail cards absorb leftover height equally and scroll their own list,
+   rather than Open Deals sizing to its content and Live Feed taking the
+   rest — with every open deal listed, a content-sized deals card would push
+   the feed off the bottom of a fixed-height viewport. */
+.rail-card--live-feed,
+.rail-card--open-deals {
   flex: 1;
   min-height: 0;
   overflow: hidden;
@@ -515,7 +520,13 @@
   text-underline-offset: 2px;
 }
 
-.top-open-deals__list {
+/* The card lists every open deal, so the list scrolls inside the card while
+   the header and filter stay put. Same flex recipe as .live-feed__groups —
+   the two rail cards now split the rail and each scrolls independently. */
+.open-deals__list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
@@ -524,7 +535,37 @@
   list-style: none;
 }
 
-.top-open-deals__row {
+.open-deals__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.open-deals__total {
+  font-family: ui-monospace, "SFMono-Regular", monospace;
+  font-size: 11px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.open-deals__filter {
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  font-size: 11px;
+  color: var(--color-text);
+  background: var(--color-surface-offset);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  transition: var(--transition-interactive);
+}
+
+.open-deals__filter:focus-visible {
+  outline: 2px solid var(--color-primary-active);
+  outline-offset: 1px;
+}
+
+.open-deals__row {
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -532,19 +573,19 @@
   border-bottom: 1px solid var(--color-border);
 }
 
-.top-open-deals__row:last-child {
+.open-deals__row:last-child {
   padding-bottom: 0;
   border-bottom: none;
 }
 
-.top-open-deals__row-main {
+.open-deals__row-main {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   gap: var(--space-3);
 }
 
-.top-open-deals__account {
+.open-deals__account {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
@@ -553,28 +594,28 @@
   color: var(--color-text);
 }
 
-.top-open-deals__client-type-dot {
+.open-deals__client-type-dot {
   width: 8px;
   height: 8px;
   border-radius: var(--radius-full);
   flex-shrink: 0;
 }
 
-.top-open-deals__amount {
+.open-deals__amount {
   font-family: ui-monospace, "SFMono-Regular", monospace;
   font-size: 12px;
   color: var(--color-text);
   white-space: nowrap;
 }
 
-.top-open-deals__row-meta {
+.open-deals__row-meta {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   gap: var(--space-3);
 }
 
-.top-open-deals__opportunity {
+.open-deals__opportunity {
   font-size: 11px;
   color: var(--color-text-faint);
   overflow: hidden;
@@ -582,7 +623,7 @@
   white-space: nowrap;
 }
 
-.top-open-deals__stage {
+.open-deals__stage {
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -590,3 +631,25 @@
   white-space: nowrap;
 }
 
+
+/* The KPI strip's second figure — smaller than the headline value and set on
+   one line, so a two-value card still reads as one fact rather than two. */
+.kpi-card__secondary {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin-top: -2px;
+}
+
+.kpi-card__secondary-label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: var(--color-text-faint);
+}
+
+.kpi-card__secondary-value {
+  font-family: ui-monospace, "SFMono-Regular", monospace;
+  font-size: 13px;
+  color: var(--color-text-muted);
+}

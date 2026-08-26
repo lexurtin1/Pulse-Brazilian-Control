@@ -11,6 +11,7 @@ export * from "./adapters/PostgresAccountRepository.js";
 export * from "./adapters/PostgresSignalRepository.js";
 export * from "./adapters/PostgresDocumentRepository.js";
 export * from "./adapters/PostgresNoteRepository.js";
+export * from "./adapters/PostgresExpansionUpdateRepository.js";
 export * from "./adapters/PostgresInsightRepository.js";
 export * from "./adapters/PostgresContextBundleRepository.js";
 export * from "./adapters/PostgresTemperatureAssessmentRepository.js";

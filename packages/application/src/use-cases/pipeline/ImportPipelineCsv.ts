@@ -20,7 +20,7 @@ import type { IIdGenerator } from "../../ports/IIdGenerator.js";
 import { parseCsv } from "../../validation/parseCsv.js";
 import { validatePipelineCsvHeaders, validatePipelineCsvRows } from "../../validation/PipelineCsvRowValidator.js";
 
-/** Shared with GetPipelineSummary/GetTopOpenDeals — one mapping from Deal to its full DTO shape. */
+/** Shared with GetPipelineSummary/GetOpenDeals — one mapping from Deal to its full DTO shape. */
 export function toDealDto(deal: Deal): DealDto {
   return {
     id: deal.id,
@@ -65,7 +65,7 @@ export interface ImportPipelineCsvCommand {
  * valid row becomes a Deal regardless of account-match outcome — unmatched
  * or ambiguous account names are flagged for review, not dropped or
  * excluded from later totals (that filtering happens in
- * GetPipelineSummary/GetTopOpenDeals, at read time).
+ * GetPipelineSummary/GetOpenDeals, at read time).
  */
 export class ImportPipelineCsv {
   constructor(

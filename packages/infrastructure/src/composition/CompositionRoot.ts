@@ -10,7 +10,8 @@ import {
   GetActiveAccountsSummary,
   GetDashboardFreshness,
   GetPipelineSummary,
-  GetTopOpenDeals,
+  GetLatestExpansionUpdate,
+  GetOpenDeals,
   ImportLocationCsv,
   ImportPipelineCsv,
   ListAccounts,
@@ -19,6 +20,8 @@ import {
   ListRecentSignals,
   ListSignalsForAccount,
   ProcessDocumentUpload,
+  SaveExpansionUpdateEdits,
+  ApplyExtractedUpdate,
   ReconcileSalesforceAccounts,
   ResolveAccountCoordinate,
   RunAccountResearchSweep,
@@ -39,6 +42,7 @@ import { PostgresDocumentRepository } from "../adapters/PostgresDocumentReposito
 import { PostgresInsightRepository } from "../adapters/PostgresInsightRepository.js";
 import { PostgresLocationRecordRepository } from "../adapters/PostgresLocationRecordRepository.js";
 import { PostgresMarketResearchLogRepository } from "../adapters/PostgresMarketResearchLogRepository.js";
+import { PostgresExpansionUpdateRepository } from "../adapters/PostgresExpansionUpdateRepository.js";
 import { PostgresNoteRepository } from "../adapters/PostgresNoteRepository.js";
 import { PostgresSignalRepository } from "../adapters/PostgresSignalRepository.js";
 import { PostgresTemperatureAssessmentRepository } from "../adapters/PostgresTemperatureAssessmentRepository.js";
@@ -78,6 +82,9 @@ export class CompositionRoot {
   /** Exposed under this name per the requested composition-root shape; the class itself is SubmitDocument — see README. */
   readonly ingestDocument: SubmitDocument;
   readonly processDocumentUpload: ProcessDocumentUpload;
+  readonly applyExtractedUpdate: ApplyExtractedUpdate;
+  readonly getLatestExpansionUpdate: GetLatestExpansionUpdate;
+  readonly saveExpansionUpdateEdits: SaveExpansionUpdateEdits;
   readonly createNote: CreateNote;
   readonly generateInsight: GenerateInsight;
   readonly buildContextBundle: BuildContextBundle;
@@ -87,7 +94,7 @@ export class CompositionRoot {
   readonly createAccountFromLocationRecord: CreateAccountFromLocationRecord;
   readonly importPipelineCsv: ImportPipelineCsv;
   readonly getPipelineSummary: GetPipelineSummary;
-  readonly getTopOpenDeals: GetTopOpenDeals;
+  readonly getOpenDeals: GetOpenDeals;
   readonly getActiveAccountsSummary: GetActiveAccountsSummary;
   readonly reconcileSalesforceAccounts: ReconcileSalesforceAccounts;
   readonly getDashboardFreshness: GetDashboardFreshness;
@@ -100,6 +107,7 @@ export class CompositionRoot {
     const signals = new PostgresSignalRepository(this.pool);
     const documents = new PostgresDocumentRepository(this.pool);
     const notes = new PostgresNoteRepository(this.pool);
+    const expansionUpdates = new PostgresExpansionUpdateRepository(this.pool);
     const insights = new PostgresInsightRepository(this.pool);
     const contextBundles = new PostgresContextBundleRepository(this.pool);
     const temperatureAssessments = new PostgresTemperatureAssessmentRepository(this.pool);
@@ -129,7 +137,17 @@ export class CompositionRoot {
     this.runAccountResearchSweep = new RunAccountResearchSweep(accounts, accountResearchBriefs, marketResearch);
     this.ingestDocument = new SubmitDocument(documents, idGenerator);
     this.createNote = new CreateNote(notes, accounts, idGenerator);
-    this.processDocumentUpload = new ProcessDocumentUpload(documents, accounts, claudeService, this.createSignal, idGenerator);
+    this.applyExtractedUpdate = new ApplyExtractedUpdate(expansionUpdates, idGenerator);
+    this.processDocumentUpload = new ProcessDocumentUpload(
+      documents,
+      accounts,
+      claudeService,
+      this.createSignal,
+      idGenerator,
+      this.applyExtractedUpdate,
+    );
+    this.getLatestExpansionUpdate = new GetLatestExpansionUpdate(expansionUpdates);
+    this.saveExpansionUpdateEdits = new SaveExpansionUpdateEdits(expansionUpdates);
     this.generateInsight = new GenerateInsight(insights, claudeService, idGenerator, this.buildContextBundle);
     this.runMarketResearchSweep = new RunMarketResearchSweep(signals, marketResearch, idGenerator, marketResearchLog);
     this.importLocationCsv = new ImportLocationCsv(locationRecords, documents, accounts, geocoder, idGenerator, accountCountSnapshots);
@@ -137,7 +155,7 @@ export class CompositionRoot {
     this.createAccountFromLocationRecord = new CreateAccountFromLocationRecord(locationRecords, accounts, idGenerator);
     this.importPipelineCsv = new ImportPipelineCsv(deals, documents, accounts, idGenerator);
     this.getPipelineSummary = new GetPipelineSummary(deals, documents);
-    this.getTopOpenDeals = new GetTopOpenDeals(deals, documents);
+    this.getOpenDeals = new GetOpenDeals(deals, documents);
     this.getActiveAccountsSummary = new GetActiveAccountsSummary(accountCountSnapshots);
     this.reconcileSalesforceAccounts = new ReconcileSalesforceAccounts(accounts, idGenerator);
     this.getDashboardFreshness = new GetDashboardFreshness(documents, marketResearchLog);

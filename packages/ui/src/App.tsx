@@ -5,9 +5,10 @@ import type {
   AccountSummaryDto,
   ActiveAccountsSummaryDto,
   DashboardFreshnessDto,
+  ExpansionUpdateDto,
+  OpenDealsResultDto,
   PipelineSummaryDto,
   SignalDto,
-  TopOpenDealsResultDto,
 } from "@pulse-brazil/application";
 import { CesiumGlobe } from "./components/CesiumGlobe/CesiumGlobe";
 import { MapLegend } from "./components/MapLegend/MapLegend";
@@ -17,16 +18,18 @@ import { EntryAnimation } from "./components/EntryAnimation/EntryAnimation";
 import { CommandHeader } from "./components/CommandCentre/CommandHeader";
 import { KpiCard } from "./components/CommandCentre/KpiCard";
 import { FeedControlsCard } from "./components/CommandCentre/FeedControlsCard";
-import { TopOpenDealsCard } from "./components/CommandCentre/TopOpenDealsCard";
+import { LatestUpdateCard } from "./components/CommandCentre/LatestUpdateCard";
+import { OpenDealsCard } from "./components/CommandCentre/OpenDealsCard";
 import { LiveFeedCard } from "./components/CommandCentre/LiveFeedCard";
 import {
   fetchAccountMapPins,
   fetchAccounts,
   fetchActiveAccountsSummary,
   fetchDashboardFreshness,
+  fetchLatestUpdate,
+  fetchOpenDeals,
   fetchPipelineSummary,
   fetchRecentSignals,
-  fetchTopOpenDeals,
 } from "./api/client";
 import { formatCount, formatCountDelta, formatCurrency, formatCurrencyDelta, formatShortDate } from "./utils/formatNumbers";
 import { primaryClientType } from "./utils/clientType";
@@ -55,8 +58,9 @@ export function App() {
   const [signals, setSignals] = useState<SignalDto[]>([]);
   const [pipelineSummary, setPipelineSummary] = useState<PipelineSummaryDto | null>(null);
   const [activeAccountsSummary, setActiveAccountsSummary] = useState<ActiveAccountsSummaryDto | null>(null);
-  const [topOpenDeals, setTopOpenDeals] = useState<TopOpenDealsResultDto | null>(null);
+  const [openDeals, setOpenDeals] = useState<OpenDealsResultDto | null>(null);
   const [dashboardFreshness, setDashboardFreshness] = useState<DashboardFreshnessDto | null>(null);
+  const [latestUpdate, setLatestUpdate] = useState<ExpansionUpdateDto | null>(null);
   const [status, setStatus] = useState<LoadState>("loading");
   const [hiddenClientTypes, setHiddenClientTypes] = useState<ReadonlySet<string | undefined>>(() => new Set());
   const [introDone, setIntroDone] = useState(() => sessionStorage.getItem(INTRO_SESSION_KEY) === "1");
@@ -70,9 +74,10 @@ export function App() {
       fetchAccountMapPins(),
       fetchRecentSignals(),
       fetchPipelineSummary(),
-      fetchTopOpenDeals(),
+      fetchOpenDeals(),
       fetchActiveAccountsSummary(),
       fetchDashboardFreshness(),
+      fetchLatestUpdate(),
     ])
       .then(
         ([
@@ -80,18 +85,20 @@ export function App() {
           mapPinsResult,
           signalsResult,
           pipelineSummaryResult,
-          topOpenDealsResult,
+          openDealsResult,
           activeAccountsSummaryResult,
           dashboardFreshnessResult,
+          latestUpdateResult,
         ]) => {
           if (cancelled) return;
           setAccounts(accountsResult);
           setMapPins(mapPinsResult);
           setSignals(signalsResult);
           setPipelineSummary(pipelineSummaryResult);
-          setTopOpenDeals(topOpenDealsResult);
+          setOpenDeals(openDealsResult);
           setActiveAccountsSummary(activeAccountsSummaryResult);
           setDashboardFreshness(dashboardFreshnessResult);
+          setLatestUpdate(latestUpdateResult);
           setStatus("ready");
         },
       )
@@ -113,15 +120,40 @@ export function App() {
       .catch((error) => console.error("Failed to refresh signals", error));
   }, []);
 
-  // After a Pipeline CSV import, re-fetch the summary + top deals so the KPI
+  // After a Pipeline CSV import, re-fetch the summary + open deals so the KPI
   // strip and rail panel show up without a full page reload.
   const refreshPipeline = useCallback(() => {
     fetchPipelineSummary()
       .then(setPipelineSummary)
       .catch((error) => console.error("Failed to refresh pipeline summary", error));
-    fetchTopOpenDeals()
-      .then(setTopOpenDeals)
-      .catch((error) => console.error("Failed to refresh top open deals", error));
+    fetchOpenDeals()
+      .then(setOpenDeals)
+      .catch((error) => console.error("Failed to refresh open deals", error));
+  }, []);
+
+  // After a document ingest, re-fetch the Brazil update — a call note or set
+  // of meeting minutes revises it, and the card is the first thing read.
+  const refreshLatestUpdate = useCallback(() => {
+    fetchLatestUpdate()
+      .then(setLatestUpdate)
+      .catch((error) => console.error("Failed to refresh the latest update", error));
+  }, []);
+
+  // An account or location import changes what the map draws — pin coordinates
+  // from a location CSV, client-type colours from a Salesforce account export.
+  const refreshMapPins = useCallback(() => {
+    fetchAccountMapPins()
+      .then(setMapPins)
+      .catch((error) => console.error("Failed to refresh map pins", error));
+  }, []);
+
+  // After creating an account, or reconciling a Salesforce account export,
+  // re-fetch the account list — it backs the client-type dots on Open Deals
+  // and the Live Feed as well as the account name lookup.
+  const refreshAccounts = useCallback(() => {
+    fetchAccounts()
+      .then(setAccounts)
+      .catch((error) => console.error("Failed to refresh accounts", error));
   }, []);
 
   // After a Location CSV import, re-fetch the Active Accounts summary so
@@ -157,15 +189,18 @@ export function App() {
     refreshPipeline();
     refreshActiveAccountsSummary();
     refreshFreshness();
-  }, [refreshSignals, refreshPipeline, refreshActiveAccountsSummary, refreshFreshness]);
-
-  // After creating an account, re-fetch the account list so it's available
-  // wherever accounts are listed (e.g. UploadFAB's "link to account" select).
-  const refreshAccounts = useCallback(() => {
-    fetchAccounts()
-      .then(setAccounts)
-      .catch((error) => console.error("Failed to refresh accounts", error));
-  }, []);
+    refreshLatestUpdate();
+    refreshMapPins();
+    refreshAccounts();
+  }, [
+    refreshSignals,
+    refreshPipeline,
+    refreshActiveAccountsSummary,
+    refreshFreshness,
+    refreshLatestUpdate,
+    refreshMapPins,
+    refreshAccounts,
+  ]);
 
   const accountsById = useMemo(() => new Map(accounts.map((account) => [account.id, account])), [accounts]);
 
@@ -236,10 +271,18 @@ export function App() {
                   : "Upload a Location CSV to populate this card"
               }
             />
+            {/* Unweighted and weighted are one figure seen two ways, so they
+                share a card — which is what frees the fourth strip slot for
+                the Brazil update. Both numbers are still shown in full. */}
             <KpiCard
               accent="teal"
-              label="PIPELINE VALUE - UNWEIGHTED"
+              label="PIPELINE VALUE"
               value={pipelineSummary ? formatCurrency(pipelineSummary.unweightedValue) : undefined}
+              secondary={
+                pipelineSummary
+                  ? { label: "WEIGHTED", value: formatCurrency(pipelineSummary.weightedValue) }
+                  : undefined
+              }
               footnote={
                 pipelineSummary
                   ? pipelineSummary.unweightedDelta
@@ -248,20 +291,8 @@ export function App() {
                   : "Upload a Salesforce pipeline export to populate this card"
               }
             />
-            <KpiCard
-              accent="teal"
-              label="PIPELINE VALUE - WEIGHTED"
-              value={pipelineSummary ? formatCurrency(pipelineSummary.weightedValue) : undefined}
-              footnote={
-                pipelineSummary
-                  ? pipelineSummary.weightedDelta
-                    ? `${formatCurrencyDelta(pipelineSummary.weightedDelta.amount)} vs. upload on ${formatShortDate(pipelineSummary.weightedDelta.previousAsOf)}`
-                    : `probability-weighted, as of ${formatShortDate(pipelineSummary.asOf)}`
-                  : "Upload a Salesforce pipeline export to populate this card"
-              }
-            />
+            <LatestUpdateCard latestUpdate={latestUpdate} onUpdated={setLatestUpdate} />
             <FeedControlsCard
-              accountsForLinking={accounts}
               onImported={refreshAfterUpload}
               onSweepComplete={handleSweepComplete}
               onFeedCleared={refreshSignals}
@@ -290,7 +321,7 @@ export function App() {
             </motion.div>
 
             <motion.div className="right-rail" variants={shellItemVariants}>
-              <TopOpenDealsCard topOpenDeals={topOpenDeals} accountsById={accountsById} />
+              <OpenDealsCard openDeals={openDeals} accountsById={accountsById} />
               <LiveFeedCard
                 signals={signals}
                 accountsById={accountsById}

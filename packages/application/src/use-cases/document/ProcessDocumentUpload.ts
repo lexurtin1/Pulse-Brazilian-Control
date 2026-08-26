@@ -16,12 +16,18 @@ import type { ClaudeDocumentContent, IClaudeService } from "../../ports/IClaudeS
 import type { IDocumentRepository } from "../../ports/IDocumentRepository.js";
 import type { IIdGenerator } from "../../ports/IIdGenerator.js";
 import type { CreateSignal } from "../signal/CreateSignal.js";
+import type { ApplyExtractedUpdate } from "../update/ApplyExtractedUpdate.js";
 
 function assertEnumMember<T extends Record<string, string>>(enumObject: T, value: string, fieldName: string): T[keyof T] {
   if (!Object.values(enumObject).includes(value)) {
     throw new ValidationError(`${fieldName} must be one of: ${Object.values(enumObject).join(", ")}`);
   }
   return value as T[keyof T];
+}
+
+/** Claude's classification is advisory, not a command: an unrecognised value degrades to Other rather than failing an otherwise-good ingest. */
+function toDocumentType(value: string): DocumentType {
+  return Object.values(DocumentType).includes(value as DocumentType) ? (value as DocumentType) : DocumentType.Other;
 }
 
 export interface ProcessDocumentUploadCommand {
@@ -43,6 +49,10 @@ export interface ProcessDocumentUploadCommand {
  * concept at all, so nothing untraceable enters the operational account
  * list unreviewed. A mention with no matching known account is surfaced via
  * unmatchedAccountMentions, never auto-created.
+ *
+ * The uploader no longer declares what a document is — `declaredType` stays
+ * Other and Claude's reading lands in `inferredType`, which is exactly the
+ * distinction SourceDocument was built to keep.
  */
 export class ProcessDocumentUpload {
   constructor(
@@ -51,6 +61,7 @@ export class ProcessDocumentUpload {
     private readonly claudeService: IClaudeService,
     private readonly createSignal: CreateSignal,
     private readonly idGenerator: IIdGenerator,
+    private readonly applyExtractedUpdate: ApplyExtractedUpdate,
   ) {}
 
   async execute(command: ProcessDocumentUploadCommand): Promise<ProcessDocumentUploadResultDto> {
@@ -81,16 +92,19 @@ export class ProcessDocumentUpload {
 
     let signalsCreated: SignalDto[] = [];
     let unmatchedAccountMentions: string[] = [];
+    let inferredType = DocumentType.Other;
+    let latestUpdateRefreshed = false;
     try {
       const allAccounts = await this.accounts.findAll();
       const knownAccountIds = new Set(allAccounts.map((account) => account.id as string));
       const knownAccounts = allAccounts.map((account) => ({ id: account.id as string, name: account.name }));
 
-      const extraction = await this.claudeService.extractSignalsFromDocument({
+      const extraction = await this.claudeService.readDocument({
         documentContent: command.documentContent,
         knownAccounts,
       });
       unmatchedAccountMentions = extraction.unmatchedAccountMentions;
+      inferredType = toDocumentType(extraction.documentType);
 
       for (const candidate of extraction.signals) {
         // Claude was instructed to leave accountId null for anything outside
@@ -114,6 +128,15 @@ export class ProcessDocumentUpload {
         });
         signalsCreated.push(signal);
       }
+
+      if (extraction.latestUpdate) {
+        await this.applyExtractedUpdate.execute({
+          draft: extraction.latestUpdate,
+          sourceDocumentId: document.id,
+          knownAccountIds,
+        });
+        latestUpdateRefreshed = true;
+      }
     } catch (error) {
       // Never leave a document stuck in Processing forever — a failed
       // extraction or signal-creation call is a visible Failed state, not a
@@ -122,16 +145,23 @@ export class ProcessDocumentUpload {
       throw error;
     }
 
-    const finalDocument =
-      signalsCreated.length > 0
-        ? processingDocument.transitionTo(IngestionState.Classified).transitionTo(IngestionState.Linked)
-        : processingDocument.transitionTo(IngestionState.Failed);
+    // A document that produced neither a signal nor an update told us
+    // nothing — that is a Failed ingest. One that refreshed the Brazil update
+    // but matched no account is still a success, which is why this is no
+    // longer a signals-only test.
+    const classified = processingDocument.withInferredType(inferredType);
+    const producedSomething = signalsCreated.length > 0 || latestUpdateRefreshed;
+    const finalDocument = producedSomething
+      ? classified.transitionTo(IngestionState.Classified).transitionTo(IngestionState.Linked)
+      : classified.transitionTo(IngestionState.Failed);
     await this.documents.save(finalDocument);
 
     return {
       sourceDocumentId: document.id,
+      documentType: inferredType,
       signalsCreated,
       unmatchedAccountMentions,
+      latestUpdateRefreshed,
     };
   }
 }

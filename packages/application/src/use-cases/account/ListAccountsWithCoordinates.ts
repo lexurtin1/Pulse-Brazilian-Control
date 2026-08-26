@@ -18,7 +18,7 @@ function pickMapOfficeLocation(account: Account): OfficeLocation | undefined {
  * canonical assessment history in one bulk query.
  *
  * openPipelineValue reads the same "latest snapshot" (most recently uploaded
- * PipelineDataset SourceDocument) as GetPipelineSummary/GetTopOpenDeals, summed
+ * PipelineDataset SourceDocument) as GetPipelineSummary/GetOpenDeals, summed
  * per linked account rather than market-wide.
  */
 export class ListAccountsWithCoordinates {

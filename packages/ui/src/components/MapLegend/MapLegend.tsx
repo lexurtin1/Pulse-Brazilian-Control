@@ -1,5 +1,5 @@
 import type { AccountMapPinDto } from "@pulse-brazil/application";
-import { CLIENT_TYPE_ORDER, clientTypeLabel } from "../../utils/clientType";
+import { CLIENT_TYPE_ORDER, clientTypeLabel, primaryClientType } from "../../utils/clientType";
 import "./MapLegend.css";
 
 interface MapLegendProps {
@@ -17,9 +17,16 @@ const ENTRIES = [...CLIENT_TYPE_ORDER, undefined] as const;
 export function MapLegend({ pins, hiddenClientTypes, onToggleClientType }: MapLegendProps) {
   if (pins.length === 0) return null;
 
+  // Every real client type keeps a pill whether or not any account currently
+  // has it — a type filtered down to nothing must stay clickable to bring it
+  // back. "Unclassified" is different: it isn't a type, it's the absence of
+  // one, so on a fully-reconciled map it would be a pill that filters
+  // nothing. It appears only while something is actually unclassified.
+  const hasUnclassified = pins.some((pin) => primaryClientType(pin.clientTypes) === undefined);
+
   return (
     <div className="map-legend">
-      {ENTRIES.map((clientType) => {
+      {ENTRIES.filter((clientType) => clientType !== undefined || hasUnclassified).map((clientType) => {
         const active = !hiddenClientTypes.has(clientType);
         const key = clientType ?? "unclassified";
         return (

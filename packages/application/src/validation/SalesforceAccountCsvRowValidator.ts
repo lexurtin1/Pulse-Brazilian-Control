@@ -1,4 +1,5 @@
 import { AccountStatus, ClientType } from "@pulse-brazil/domain";
+import { looksLikePipelineCsv } from "./PipelineCsvRowValidator.js";
 
 /**
  * Deterministic CSV row validation, kept entirely outside the domain model
@@ -46,6 +47,20 @@ export const REQUIRED_SALESFORCE_ACCOUNT_CSV_COLUMNS = ["Account Name", "Status"
 export function validateSalesforceAccountCsvHeaders(headers: string[]): string[] {
   const present = new Set(headers.map((header) => header.toLowerCase()));
   return REQUIRED_SALESFORCE_ACCOUNT_CSV_COLUMNS.filter((column) => !present.has(column.toLowerCase()));
+}
+
+/**
+ * True when a sheet's headers look like a Salesforce *account* export rather
+ * than an opportunity or location one — used to auto-route uploads.
+ *
+ * "Account Name" appears in both Salesforce exports, so it proves nothing on
+ * its own; "Status" is what separates them (an opportunity report carries
+ * "Stage" instead). The pipeline check is still run first as a tie-break, so
+ * a report that somehow satisfied both would be treated as pipeline data
+ * rather than silently overwriting account metadata.
+ */
+export function looksLikeSalesforceAccountCsv(headers: string[]): boolean {
+  return validateSalesforceAccountCsvHeaders(headers).length === 0 && !looksLikePipelineCsv(headers);
 }
 
 /**
