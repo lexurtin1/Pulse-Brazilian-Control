@@ -88,8 +88,13 @@ export class ApplyExtractedUpdate {
         draft.nextMeeting && scheduledFor && draft.nextMeeting.withWhom.trim()
           ? { scheduledFor, withWhom: draft.nextMeeting.withWhom, purpose: draft.nextMeeting.purpose }
           : undefined,
-      awaitingInternal: draft.awaitingInternal ?? undefined,
-      nextActions: draft.nextActions ?? undefined,
+      // An empty list means "this document mentions none", which is not the
+      // same as "there are none". The card holds a running state, not a
+      // per-document snapshot: a call note about pricing shouldn't wipe an
+      // outstanding legal sign-off just by failing to mention it. Only a
+      // manual edit clears a list.
+      awaitingInternal: draft.awaitingInternal?.length ? draft.awaitingInternal : undefined,
+      nextActions: draft.nextActions?.length ? draft.nextActions : undefined,
     };
   }
 }
