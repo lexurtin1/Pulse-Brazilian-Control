@@ -40,15 +40,20 @@ const BRAZIL_CENTER_LATITUDE = -14;
 const SPACE_ALTITUDE_METERS = 25_000_000;
 const FLY_IN_DURATION_SECONDS = 3;
 
-// Account dots are the main thing on this page, at every zoom level — an
-// earlier version shrank them toward a "precise anchor" as the camera got
-// close, which made them unreadable up close (the opposite of the goal). Dots
-// now hold one fixed screen-space pixel size regardless of camera distance.
-const ACCOUNT_PIN_BASE_SIZE = 40;
-const ACCOUNT_PIN_SELECTED_BASE_SIZE = 52;
+// One fixed screen-space size at every zoom — an earlier version shrank dots
+// as the camera got close, which made them unreadable exactly when you were
+// looking hardest.
+//
+// Small enough that São Paulo reads as separate accounts rather than one
+// overlapping blob: at 40px the cluster there covered its own neighbourhood.
+// Legibility against the satellite imagery comes from the light outline, not
+// from size — a solid fill ringed in the surface colour separates from both
+// the pale city and the dark forest without needing to be large.
+const ACCOUNT_PIN_SIZE = 13;
+const ACCOUNT_PIN_SELECTED_SIZE = 19;
 
-const ACCOUNT_PIN_OUTLINE_WIDTH = 3;
-const ACCOUNT_PIN_SELECTED_OUTLINE_WIDTH = 4;
+const ACCOUNT_PIN_OUTLINE_WIDTH = 2;
+const ACCOUNT_PIN_SELECTED_OUTLINE_WIDTH = 3;
 
 // Each dot's terrain height is sampled ONCE, baked into a fixed position, and
 // anchored with NONE — the middle ground between the two things that were
@@ -64,34 +69,17 @@ const ACCOUNT_PIN_SELECTED_OUTLINE_WIDTH = 4;
 // and it is the real ground height, so tilt cannot pull it off the city.
 const PIN_HEIGHT_REFERENCE = Cesium.HeightReference.NONE;
 
-// "Feel alive": every dot gently breathes (size oscillation) on a loop rather
-// than sitting dead-still. The selected dot pulses harder/faster so it still
-// reads as distinct now that pulsing isn't unique to it. Each dot gets a stable
-// per-id phase offset (not random-per-render, not synced) so the whole map
-// doesn't blink in unison like a single strobing light.
-const AMBIENT_PULSE_AMPLITUDE = 0.12;
-const AMBIENT_PULSE_PERIOD_MS = 2600;
-const SELECTED_PULSE_AMPLITUDE = 0.22;
-const SELECTED_PULSE_PERIOD_MS = 1400;
+// Dots are static. They used to breathe on a loop to "feel alive", but with
+// this many accounts in one metro area the map read as restless rather than
+// alive, and a size that changes every frame makes crowded dots harder to
+// tell apart. Selection is shown by size and outline colour instead — a
+// difference you can read in a still frame.
 
 // Keyed by coordinate rather than account id: the ground height belongs to the
 // place, so two accounts in the same building share one terrain sample, and an
 // account whose coordinate is corrected gets a fresh one.
 function coordinateKey(pin: AccountMapPinDto): string {
   return `${pin.coordinate.longitude},${pin.coordinate.latitude}`;
-}
-
-function stablePhase(id: string): number {
-  let hash = 0;
-  for (let i = 0; i < id.length; i++) {
-    hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
-  }
-  return (hash % 1000) / 1000;
-}
-
-function pulseFactor(nowMs: number, amplitude: number, periodMs: number, phase: number): number {
-  const cyclePosition = (nowMs / periodMs + phase) % 1;
-  return 1 + amplitude * Math.sin(cyclePosition * Math.PI * 2);
 }
 
 // Cesium's zoom-in floor defaults to 1m from the ellipsoid, which is far
@@ -264,10 +252,6 @@ export function CesiumGlobe({ pins, selectedAccountId, onSelectAccount }: Cesium
           cssColorString(clientTypeColorVar(primaryClientType(pin.clientTypes))),
         );
         const selected = pin.id === selectedAccountId;
-        const phase = stablePhase(pin.id);
-        const baseSize = selected ? ACCOUNT_PIN_SELECTED_BASE_SIZE : ACCOUNT_PIN_BASE_SIZE;
-        const amplitude = selected ? SELECTED_PULSE_AMPLITUDE : AMBIENT_PULSE_AMPLITUDE;
-        const periodMs = selected ? SELECTED_PULSE_PERIOD_MS : AMBIENT_PULSE_PERIOD_MS;
 
         accountsDataSource!.entities.add({
           id: `account-pin-${pin.id}`,
@@ -282,7 +266,9 @@ export function CesiumGlobe({ pins, selectedAccountId, onSelectAccount }: Cesium
             hoverValue: pin.openPipelineValue,
           },
           point: {
-            pixelSize: new Cesium.CallbackProperty(() => baseSize * pulseFactor(Date.now(), amplitude, periodMs, phase), false),
+            // A plain number, not a CallbackProperty — nothing re-evaluates
+            // per frame now that the size is fixed.
+            pixelSize: selected ? ACCOUNT_PIN_SELECTED_SIZE : ACCOUNT_PIN_SIZE,
             color: clientColor,
             outlineColor: selected ? activeColor : surfaceColor,
             outlineWidth: selected ? ACCOUNT_PIN_SELECTED_OUTLINE_WIDTH : ACCOUNT_PIN_OUTLINE_WIDTH,
