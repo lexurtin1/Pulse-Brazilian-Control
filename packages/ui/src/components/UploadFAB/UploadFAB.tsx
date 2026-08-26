@@ -7,7 +7,13 @@ import type {
   ImportPipelineCsvResultDto,
   ProcessDocumentUploadResultDto,
 } from "@pulse-brazil/application";
-import { looksLikePipelineCsv, parseCsv, validateLocationCsvHeaders } from "@pulse-brazil/application";
+import {
+  looksLikePipelineCsv,
+  parseCsv,
+  REQUIRED_PIPELINE_CSV_COLUMNS,
+  validateLocationCsvHeaders,
+  validatePipelineCsvHeaders,
+} from "@pulse-brazil/application";
 import { importLocationCsv, importPipelineCsv, ingestDocument } from "../../api/client";
 import { useDialogA11y } from "../../hooks/useDialogA11y";
 import { formatEnumLabel } from "../../utils/formatEnumLabel";
@@ -63,6 +69,27 @@ function isKnownTabularHeader(headers: string[]): boolean {
 }
 
 /**
+ * Names the missing columns when a sheet is *nearly* a pipeline export.
+ * Salesforce opportunity reports come in several column sets, and only some
+ * carry Expected Revenue / Probability — telling the user which column is
+ * absent is the difference between a fixable export and a dead end.
+ */
+function explainHeaderMiss(headers: string[]): string | undefined {
+  // "Opportunity Name" is what separates an opportunity report from an account
+  // one — both carry "Account Name", so that column alone proves nothing.
+  const isOpportunityReport = headers.some((header) => header.toLowerCase() === "opportunity name");
+  const missing = validatePipelineCsvHeaders(headers);
+  if (!isOpportunityReport || missing.length === 0 || missing.length === REQUIRED_PIPELINE_CSV_COLUMNS.length) {
+    return undefined;
+  }
+  return (
+    `this looks like a Salesforce opportunity report, but the pipeline importer needs ` +
+    `${missing.length === 1 ? "a column" : "columns"} it doesn't have: ${missing.join(", ")}. ` +
+    `Add ${missing.length === 1 ? "it" : "them"} to the report's columns in Salesforce and export again`
+  );
+}
+
+/**
  * Real Pipeline CSV exports from Salesforce are Windows-1252/Latin-1, not
  * UTF-8 — decoding as UTF-8 corrupts accented account names (e.g. "Itaú").
  * Header names are plain ASCII either way, so a first UTF-8 decode is safe
@@ -87,7 +114,7 @@ async function readCsvFile(file: File): Promise<TabularUpload> {
  * behaves. No encoding dance here; xlsx XML is always UTF-8.
  */
 async function readXlsxFile(file: File): Promise<TabularUpload> {
-  const csvText = await xlsxToCsvText(await file.arrayBuffer(), isKnownTabularHeader);
+  const csvText = await xlsxToCsvText(await file.arrayBuffer(), isKnownTabularHeader, explainHeaderMiss);
   const { headers } = parseCsv(csvText);
   return { kind: looksLikePipelineCsv(headers) ? "pipeline" : "location", csvText };
 }

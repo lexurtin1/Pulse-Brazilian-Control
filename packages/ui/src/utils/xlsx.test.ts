@@ -204,10 +204,49 @@ describe("xlsxToCsvText", () => {
   });
 
   it("reports a readable error instead of importing a workbook it doesn't recognise", async () => {
-    const unrelated = `<row r="1">${inline("A1", "Region")}${inline("B1", "Headcount")}</row>`;
+    const unrelated = [
+      `<row r="1">${inline("A1", "Region")}${inline("B1", "Headcount")}${inline("C1", "Office")}</row>`,
+      `<row r="2">${inline("A2", "Sudeste")}${number("B2", 12)}${inline("C2", "Sao Paulo")}</row>`,
+    ].join("");
 
     await expect(xlsxToCsvText(workbook(unrelated), isPipelineHeader)).rejects.toThrow(
-      /Couldn't find a recognisable header row/,
+      /doesn't match either import format\. Columns found: Region, Headcount, Office/,
     );
+  });
+
+  /**
+   * The real miss reported from production (2026-08-24): a Salesforce
+   * *summary* report pivots Stage across the columns and holds only
+   * "Sum of ..." / "Record Count" aggregates. The opportunities are not in
+   * the file, so the only useful response is to name the report type.
+   */
+  it("names a Salesforce summary report rather than blaming a missing header row", async () => {
+    const matrix = [
+      `<row r="1">${inline("B1", "Open Brazil Opportunities this FY")}</row>`,
+      `<row r="2">${inline("B2", "Stage →")}${inline("D2", "Prospect")}${inline("G2", "Subtotal")}${inline("J2", "Qualified")}</row>`,
+      `<row r="3">${inline("B3", "Revenue Live Date  ↑")}${inline("D3", "Sum of Amount")}${inline("E3", "Record Count")}</row>`,
+      `<row r="4">${inline("B4", "May 2026")}${number("D4", 55200)}${number("E4", 1)}</row>`,
+    ].join("");
+
+    await expect(xlsxToCsvText(workbook(matrix), isPipelineHeader)).rejects.toThrow(
+      /is a Salesforce summary report .* Tabular \(details\) format/s,
+    );
+  });
+
+  it("names the missing column when a sheet is nearly a pipeline export", async () => {
+    // A real tabular opportunity export that carries Amount but no Expected Revenue.
+    const nearMiss = [
+      `<row r="1">${inline("A1", "Account Name  ↑")}${inline("B1", "Opportunity Name")}${inline("C1", "Stage")}${inline("D1", "Amount")}${inline("E1", "Product")}</row>`,
+      `<row r="2">${inline("A2", "Apex Group (Brazil)")}${inline("B2", "Apex Brazil - local TA")}${inline("C2", "Qualified")}${number("D2", 18000)}${inline("E2", "Order Routing")}</row>`,
+    ].join("");
+
+    const explain = (headers: string[]) => {
+      const missing = headers.some((header) => header.toLowerCase() === "opportunity name")
+        ? ["Expected Revenue"]
+        : [];
+      return missing.length > 0 ? `missing: ${missing.join(", ")}` : undefined;
+    };
+
+    await expect(xlsxToCsvText(workbook(nearMiss), isPipelineHeader, explain)).rejects.toThrow(/missing: Expected Revenue/);
   });
 });
