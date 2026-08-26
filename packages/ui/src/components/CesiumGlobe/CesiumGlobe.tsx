@@ -50,11 +50,18 @@ const ACCOUNT_PIN_SELECTED_BASE_SIZE = 52;
 const ACCOUNT_PIN_OUTLINE_WIDTH = 3;
 const ACCOUNT_PIN_SELECTED_OUTLINE_WIDTH = 4;
 
-// Account dots anchor with NONE at sea level rather than clamping to terrain:
-// disableDepthTestDistance is POSITIVE_INFINITY on every dot, so they draw on
-// top regardless of the 3D surface beneath them, and a fixed ellipsoid anchor
-// is a number no terrain-tile load can nudge (which is what read as pins
-// "drifting" at max zoom when they were terrain-clamped).
+// Each dot's terrain height is sampled ONCE, baked into a fixed position, and
+// anchored with NONE — the middle ground between the two things that were
+// tried before and both looked wrong.
+//
+// CLAMP_TO_GROUND re-resolves the height as terrain tiles stream in, which is
+// what read as dots "jittering" while zooming. A plain ellipsoid anchor holds
+// still, but sits at sea level: São Paulo's terrain is ~760m up, so tilting
+// the camera slid the dot roughly h·tan(tilt) away from its own city — still
+// drawn on top (see disableDepthTestDistance) but visibly off its mark.
+//
+// A one-off sample is a plain number afterwards, so no tile load can nudge it,
+// and it is the real ground height, so tilt cannot pull it off the city.
 const PIN_HEIGHT_REFERENCE = Cesium.HeightReference.NONE;
 
 // "Feel alive": every dot gently breathes (size oscillation) on a loop rather
@@ -66,6 +73,13 @@ const AMBIENT_PULSE_AMPLITUDE = 0.12;
 const AMBIENT_PULSE_PERIOD_MS = 2600;
 const SELECTED_PULSE_AMPLITUDE = 0.22;
 const SELECTED_PULSE_PERIOD_MS = 1400;
+
+// Keyed by coordinate rather than account id: the ground height belongs to the
+// place, so two accounts in the same building share one terrain sample, and an
+// account whose coordinate is corrected gets a fresh one.
+function coordinateKey(pin: AccountMapPinDto): string {
+  return `${pin.coordinate.longitude},${pin.coordinate.latitude}`;
+}
 
 function stablePhase(id: string): number {
   let hash = 0;
@@ -96,6 +110,14 @@ export function CesiumGlobe({ pins, selectedAccountId, onSelectAccount }: Cesium
   const accountsDataSourceRef = useRef<Cesium.CustomDataSource | null>(null);
   const onSelectAccountRef = useRef(onSelectAccount);
   onSelectAccountRef.current = onSelectAccount;
+  // World terrain streams in asynchronously after the viewer mounts. Sampling
+  // before it arrives hits the ellipsoid placeholder and comes back 0, which
+  // is exactly the sea-level anchor the sampling exists to avoid — so the pin
+  // render awaits this.
+  const terrainReadyRef = useRef<Promise<Cesium.TerrainProvider> | null>(null);
+  // Ground height by coordinate, so re-rendering for a selection change reuses
+  // what was already sampled instead of re-fetching terrain on every pin click.
+  const sampledHeightsRef = useRef(new Map<string, number>());
   const [hoverInfo, setHoverInfo] = useState<HoverInfo | null>(null);
 
   useEffect(() => {
@@ -104,9 +126,16 @@ export function CesiumGlobe({ pins, selectedAccountId, onSelectAccount }: Cesium
     const token = import.meta.env.VITE_CESIUM_ION_TOKEN as string | undefined;
     if (token) Cesium.Ion.defaultAccessToken = token;
 
-    // World terrain gives the globe its 3D relief. Account dots don't sample it —
-    // they float at a fixed ellipsoid anchor and draw on top (see PIN_HEIGHT_REFERENCE).
+    // World terrain gives the globe its 3D relief, and the account dots sample
+    // it once each so they sit on that surface (see PIN_HEIGHT_REFERENCE).
     const worldTerrain = Cesium.Terrain.fromWorldTerrain();
+    terrainReadyRef.current = new Promise<Cesium.TerrainProvider>((resolve) => {
+      if (worldTerrain.ready) {
+        resolve(worldTerrain.provider);
+        return;
+      }
+      worldTerrain.readyEvent.addEventListener((provider) => resolve(provider));
+    });
 
     const viewer = new Cesium.Viewer(containerRef.current, {
       terrain: worldTerrain,
@@ -186,6 +215,7 @@ export function CesiumGlobe({ pins, selectedAccountId, onSelectAccount }: Cesium
       viewer.destroy();
       viewerRef.current = null;
       accountsDataSourceRef.current = null;
+      terrainReadyRef.current = null;
     };
   }, []);
 
@@ -197,37 +227,84 @@ export function CesiumGlobe({ pins, selectedAccountId, onSelectAccount }: Cesium
     const accountsDataSource = accountsDataSourceRef.current;
     if (!viewer || !accountsDataSource) return;
 
-    const surfaceColor = Cesium.Color.fromCssColorString(cssColorString("--color-surface"));
-    const activeColor = Cesium.Color.fromCssColorString(cssColorString("--color-primary-active"));
+    let cancelled = false;
 
-    accountsDataSource.entities.removeAll();
+    async function groundHeights(): Promise<Map<string, number>> {
+      const cache = sampledHeightsRef.current;
+      const unsampled = pins.filter((pin) => !cache.has(coordinateKey(pin)));
+      if (unsampled.length === 0) return cache;
 
-    for (const pin of pins) {
-      const clientColor = Cesium.Color.fromCssColorString(cssColorString(clientTypeColorVar(primaryClientType(pin.clientTypes))));
-      const selected = pin.id === selectedAccountId;
-      const phase = stablePhase(pin.id);
-      const baseSize = selected ? ACCOUNT_PIN_SELECTED_BASE_SIZE : ACCOUNT_PIN_BASE_SIZE;
-      const amplitude = selected ? SELECTED_PULSE_AMPLITUDE : AMBIENT_PULSE_AMPLITUDE;
-      const periodMs = selected ? SELECTED_PULSE_PERIOD_MS : AMBIENT_PULSE_PERIOD_MS;
-
-      accountsDataSource.entities.add({
-        id: `account-pin-${pin.id}`,
-        position: Cesium.Cartesian3.fromDegrees(pin.coordinate.longitude, pin.coordinate.latitude),
-        properties: {
-          accountId: pin.id,
-          hoverName: pin.name,
-          hoverValue: pin.openPipelineValue,
-        },
-        point: {
-          pixelSize: new Cesium.CallbackProperty(() => baseSize * pulseFactor(Date.now(), amplitude, periodMs, phase), false),
-          color: clientColor,
-          outlineColor: selected ? activeColor : surfaceColor,
-          outlineWidth: selected ? ACCOUNT_PIN_SELECTED_OUTLINE_WIDTH : ACCOUNT_PIN_OUTLINE_WIDTH,
-          disableDepthTestDistance: Number.POSITIVE_INFINITY,
-          heightReference: PIN_HEIGHT_REFERENCE,
-        },
+      const cartographics = unsampled.map((pin) =>
+        Cesium.Cartographic.fromDegrees(pin.coordinate.longitude, pin.coordinate.latitude),
+      );
+      try {
+        const terrainProvider = await terrainReadyRef.current;
+        if (terrainProvider) await Cesium.sampleTerrainMostDetailed(terrainProvider, cartographics);
+      } catch {
+        // Terrain unavailable — the heights stay 0 and the dots sit on the
+        // ellipsoid, which is where they were before this sampling existed.
+        // Not worth failing the whole map over.
+        return cache;
+      }
+      unsampled.forEach((pin, index) => {
+        const height = cartographics[index]?.height;
+        if (height !== undefined && Number.isFinite(height)) cache.set(coordinateKey(pin), height);
       });
+      return cache;
     }
+
+    function render(heights: Map<string, number>) {
+      const surfaceColor = Cesium.Color.fromCssColorString(cssColorString("--color-surface"));
+      const activeColor = Cesium.Color.fromCssColorString(cssColorString("--color-primary-active"));
+
+      accountsDataSource!.entities.removeAll();
+
+      for (const pin of pins) {
+        const clientColor = Cesium.Color.fromCssColorString(
+          cssColorString(clientTypeColorVar(primaryClientType(pin.clientTypes))),
+        );
+        const selected = pin.id === selectedAccountId;
+        const phase = stablePhase(pin.id);
+        const baseSize = selected ? ACCOUNT_PIN_SELECTED_BASE_SIZE : ACCOUNT_PIN_BASE_SIZE;
+        const amplitude = selected ? SELECTED_PULSE_AMPLITUDE : AMBIENT_PULSE_AMPLITUDE;
+        const periodMs = selected ? SELECTED_PULSE_PERIOD_MS : AMBIENT_PULSE_PERIOD_MS;
+
+        accountsDataSource!.entities.add({
+          id: `account-pin-${pin.id}`,
+          position: Cesium.Cartesian3.fromDegrees(
+            pin.coordinate.longitude,
+            pin.coordinate.latitude,
+            heights.get(coordinateKey(pin)) ?? 0,
+          ),
+          properties: {
+            accountId: pin.id,
+            hoverName: pin.name,
+            hoverValue: pin.openPipelineValue,
+          },
+          point: {
+            pixelSize: new Cesium.CallbackProperty(() => baseSize * pulseFactor(Date.now(), amplitude, periodMs, phase), false),
+            color: clientColor,
+            outlineColor: selected ? activeColor : surfaceColor,
+            outlineWidth: selected ? ACCOUNT_PIN_SELECTED_OUTLINE_WIDTH : ACCOUNT_PIN_OUTLINE_WIDTH,
+            disableDepthTestDistance: Number.POSITIVE_INFINITY,
+            heightReference: PIN_HEIGHT_REFERENCE,
+          },
+        });
+      }
+    }
+
+    // Draw immediately at whatever heights are already known, so selecting a
+    // pin never blanks the map while terrain is fetched, then redraw once the
+    // sample lands. On every render after the first, the cache is warm and the
+    // second pass is a no-op repaint.
+    render(sampledHeightsRef.current);
+    void groundHeights().then((heights) => {
+      if (!cancelled) render(heights);
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, [pins, selectedAccountId]);
 
   // Selecting an account recenters the camera on it but keeps whatever
