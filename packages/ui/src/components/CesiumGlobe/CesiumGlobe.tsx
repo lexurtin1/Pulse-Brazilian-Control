@@ -220,7 +220,7 @@ export function CesiumGlobe({ pins, selectedAccountId, onSelectAccount }: Cesium
   }, []);
 
   // Account dots as Cesium entities, colored by client type — the same palette
-  // the legend, Top Open Deals, Live Feed and the Account Dossier header use,
+  // the legend, Open Deals, Live Feed and the Account Dossier header use,
   // so a client type is always the same color wherever it appears.
   useEffect(() => {
     const viewer = viewerRef.current;

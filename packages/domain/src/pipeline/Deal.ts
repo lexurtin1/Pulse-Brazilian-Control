@@ -53,7 +53,7 @@ function assertValid(props: DealProps): void {
  * predicate (`isOpen`), not an import-time filter: `Live` (already
  * closed-won, revenue flowing) and `Lost` (closed-lost) rows are stored
  * exactly like any other, just excluded by consumers that only want open
- * pipeline (Pipeline Value, Top Open Deals).
+ * pipeline (Pipeline Value, Open Deals).
  *
  * There is no separate "PipelineSnapshot" entity — the owning `SourceDocument`
  * (declaredType PipelineDataset) already carries the one timestamp a

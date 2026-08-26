@@ -95,7 +95,7 @@ function parseBrDate(raw: string | undefined): Date | undefined {
  * Validates one already-split CSV row against the fixed contract. Returns
  * either a draft (never a domain entity — construction happens later, once
  * account linkage is resolved) or a list of row-level errors. Fields not
- * needed for Pipeline Value / Top Open Deals (Age, Revenue Live Date, Next
+ * needed for Pipeline Value / Open Deals (Age, Revenue Live Date, Next
  * Step Summary, Lead Source, Type, Owner Region, Opportunity Owner) are
  * parsed leniently — a malformed ancillary field doesn't reject an
  * otherwise-valid deal row.
