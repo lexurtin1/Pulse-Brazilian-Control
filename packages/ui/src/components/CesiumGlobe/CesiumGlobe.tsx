@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import type { KeyboardEvent as ReactKeyboardEvent } from "react";
+import { Minus, Plus, Locate } from "lucide-react";
 import * as Cesium from "cesium";
 import "cesium/Build/Cesium/Widgets/widgets.css";
 import type { AccountMapPinDto } from "@pulse-brazil/application";
@@ -94,6 +96,18 @@ const MINIMUM_ZOOM_DISTANCE_METERS = 100;
 // rather than falling back to the ellipsoid.
 const TERRAIN_READY_TIMEOUT_MS = 15_000;
 
+// Ceiling for the zoom-out button — the altitude the entrance starts from.
+// Without it, holding zoom-out walks the camera off into empty space with
+// no way back except the reset button.
+const MAXIMUM_ZOOM_DISTANCE_METERS = SPACE_ALTITUDE_METERS;
+
+// Zoom is proportional to current altitude, never a fixed number of metres:
+// 10km is imperceptible from orbit and violent at street level. These are
+// fractions of the current height — one held frame, and one discrete press
+// for keyboard users, who get no press-and-hold.
+const ZOOM_FRACTION_PER_FRAME = 0.022;
+const ZOOM_FRACTION_PER_KEYPRESS = 0.28;
+
 // Every camera flight goes through this. Cesium's Camera.flyTo disables
 // screenSpaceCameraController.enableInputs for the duration of the flight
 // and restores it from the tween's own complete/cancel wrapper — which is
@@ -132,6 +146,8 @@ export function CesiumGlobe({ pins, selectedAccountId, onSelectAccount }: Cesium
   // Ground height by coordinate, so re-rendering for a selection change reuses
   // what was already sampled instead of re-fetching terrain on every pin click.
   const sampledHeightsRef = useRef(new Map<string, number>());
+  // rAF handle for press-and-hold on the zoom buttons.
+  const zoomFrameRef = useRef<number | null>(null);
   const [hoverInfo, setHoverInfo] = useState<HoverInfo | null>(null);
 
   useEffect(() => {
@@ -245,6 +261,7 @@ export function CesiumGlobe({ pins, selectedAccountId, onSelectAccount }: Cesium
 
     return () => {
       resizeObserver.disconnect();
+      if (zoomFrameRef.current !== null) cancelAnimationFrame(zoomFrameRef.current);
       viewer.camera.cancelFlight();
       viewer.destroy();
       viewerRef.current = null;
@@ -364,6 +381,58 @@ export function CesiumGlobe({ pins, selectedAccountId, onSelectAccount }: Cesium
     });
   }, [selectedAccountId]);
 
+  /**
+   * Moves the camera along its own view direction by a fraction of its
+   * current altitude — the same thing a wheel notch does, driven straight
+   * off Camera rather than through screenSpaceCameraController, so these
+   * controls work regardless of what the input layer is doing.
+   *
+   * Positive fraction zooms in. Clamped at both ends so a held button can
+   * neither push the camera through the terrain nor lose it in space.
+   */
+  function zoomBy(fraction: number) {
+    const viewer = viewerRef.current;
+    if (!viewer) return;
+
+    const { camera } = viewer;
+    const height = camera.positionCartographic.height;
+    const target = Cesium.Math.clamp(
+      height * (1 - fraction),
+      MINIMUM_ZOOM_DISTANCE_METERS,
+      MAXIMUM_ZOOM_DISTANCE_METERS,
+    );
+    const delta = height - target;
+    // Already pinned against a limit — nothing to do, and zoomIn(0) would
+    // still cost a matrix update every frame while the button is held.
+    if (Math.abs(delta) < 0.01) return;
+    // A negative amount moves the camera backwards along `direction`.
+    camera.zoomIn(delta);
+  }
+
+  function stopZooming() {
+    if (zoomFrameRef.current === null) return;
+    cancelAnimationFrame(zoomFrameRef.current);
+    zoomFrameRef.current = null;
+  }
+
+  /** Press-and-hold: zoom accelerates smoothly for as long as the button is down, and a quick click is simply a short hold. */
+  function startZooming(fraction: number) {
+    stopZooming();
+    const tick = () => {
+      zoomBy(fraction);
+      zoomFrameRef.current = requestAnimationFrame(tick);
+    };
+    zoomFrameRef.current = requestAnimationFrame(tick);
+  }
+
+  function handleZoomKeyDown(event: ReactKeyboardEvent<HTMLButtonElement>, fraction: number) {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    // Keyboard gets a discrete step per press — there is no pointerup to end
+    // a hold on, and key repeat already provides the "held" behaviour.
+    event.preventDefault();
+    zoomBy(fraction);
+  }
+
   return (
     <div className="cesium-globe">
       <div ref={containerRef} className="cesium-globe__canvas" />
@@ -375,6 +444,55 @@ export function CesiumGlobe({ pins, selectedAccountId, onSelectAccount }: Cesium
           </span>
         </div>
       )}
+      {/*
+        Explicit zoom controls. Cesium's own wheel zoom stopped responding on
+        at least one machine and resisted diagnosis, so zoom is no longer
+        reachable only through an input path we don't control: these call
+        Camera directly and work whatever screenSpaceCameraController is
+        doing. They are also the accessible route — the canvas takes no
+        keyboard input of its own.
+      */}
+      <div className="cesium-globe__controls">
+        <button
+          type="button"
+          className="cesium-globe__control"
+          aria-label="Zoom in"
+          title="Zoom in"
+          onPointerDown={() => startZooming(ZOOM_FRACTION_PER_FRAME)}
+          onPointerUp={stopZooming}
+          onPointerLeave={stopZooming}
+          onPointerCancel={stopZooming}
+          onKeyDown={(event) => handleZoomKeyDown(event, ZOOM_FRACTION_PER_KEYPRESS)}
+        >
+          <Plus size={16} strokeWidth={2.5} />
+        </button>
+        <button
+          type="button"
+          className="cesium-globe__control"
+          aria-label="Zoom out"
+          title="Zoom out"
+          onPointerDown={() => startZooming(-ZOOM_FRACTION_PER_FRAME)}
+          onPointerUp={stopZooming}
+          onPointerLeave={stopZooming}
+          onPointerCancel={stopZooming}
+          onKeyDown={(event) => handleZoomKeyDown(event, -ZOOM_FRACTION_PER_KEYPRESS)}
+        >
+          <Minus size={16} strokeWidth={2.5} />
+        </button>
+        <button
+          type="button"
+          className="cesium-globe__control"
+          aria-label="Reset the view to Brazil"
+          title="Reset view"
+          onClick={() => {
+            const viewer = viewerRef.current;
+            if (viewer) flyCamera(viewer, { destination: BRAZIL_RECTANGLE, duration: 1.2 });
+          }}
+        >
+          <Locate size={15} strokeWidth={2.5} />
+        </button>
+      </div>
+
       {/* Same accessible-alternative pattern as BrazilMap: Cesium's canvas
           isn't focusable/screen-reader-visible, so real tabbable buttons
           mirror each dot's click behavior. */}
