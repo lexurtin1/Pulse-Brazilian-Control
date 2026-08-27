@@ -12,9 +12,14 @@
   gap: var(--space-2);
   align-items: flex-start;
   overflow-y: auto;
+  /* The column spans the map's full height, so without this a wheel over the
+     left edge scrolled the legend instead of zooming the globe. Only the
+     pills themselves are interactive; the gaps between them are map. */
+  pointer-events: none;
 }
 
 .map-legend__pill {
+  pointer-events: auto;
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);

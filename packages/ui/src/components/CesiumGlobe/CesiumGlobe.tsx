@@ -89,6 +89,27 @@ function coordinateKey(pin: AccountMapPinDto): string {
 // that positions stay numerically stable.
 const MINIMUM_ZOOM_DISTANCE_METERS = 100;
 
+// A terrain provider that has neither become ready nor errored by now is
+// never going to. Without this the height sample would wait on it forever
+// rather than falling back to the ellipsoid.
+const TERRAIN_READY_TIMEOUT_MS = 15_000;
+
+// Every camera flight goes through this. Cesium's Camera.flyTo disables
+// screenSpaceCameraController.enableInputs for the duration of the flight
+// and restores it from the tween's own complete/cancel wrapper — which is
+// fine for one flight, and is exactly how mouse-wheel zoom ended up dead
+// when flights overlapped: the later flight's "disable" ran after the
+// earlier one's "restore", leaving inputs off with no flight left to turn
+// them back on. Cancelling first and re-enabling from both callbacks makes
+// the restore ours rather than a race between two of Cesium's.
+function flyCamera(viewer: Cesium.Viewer, options: Omit<Parameters<Cesium.Camera["flyTo"]>[0], "complete" | "cancel">): void {
+  const restoreInputs = () => {
+    viewer.scene.screenSpaceCameraController.enableInputs = true;
+  };
+  viewer.camera.cancelFlight();
+  viewer.camera.flyTo({ ...options, complete: restoreInputs, cancel: restoreInputs });
+}
+
 // Nothing on this map is clustered. Cesium's EntityCluster was tried and
 // removed: every account is its own dot, at every zoom.
 
@@ -98,11 +119,16 @@ export function CesiumGlobe({ pins, selectedAccountId, onSelectAccount }: Cesium
   const accountsDataSourceRef = useRef<Cesium.CustomDataSource | null>(null);
   const onSelectAccountRef = useRef(onSelectAccount);
   onSelectAccountRef.current = onSelectAccount;
+  // Read by the selection effect, which must NOT re-run when the pin list
+  // changes — see the comment on that effect. A ref is how it reads the
+  // current pins without taking them as a dependency.
+  const pinsRef = useRef(pins);
+  pinsRef.current = pins;
   // World terrain streams in asynchronously after the viewer mounts. Sampling
   // before it arrives hits the ellipsoid placeholder and comes back 0, which
   // is exactly the sea-level anchor the sampling exists to avoid — so the pin
   // render awaits this.
-  const terrainReadyRef = useRef<Promise<Cesium.TerrainProvider> | null>(null);
+  const terrainReadyRef = useRef<Promise<Cesium.TerrainProvider | undefined> | null>(null);
   // Ground height by coordinate, so re-rendering for a selection change reuses
   // what was already sampled instead of re-fetching terrain on every pin click.
   const sampledHeightsRef = useRef(new Map<string, number>());
@@ -117,12 +143,20 @@ export function CesiumGlobe({ pins, selectedAccountId, onSelectAccount }: Cesium
     // World terrain gives the globe its 3D relief, and the account dots sample
     // it once each so they sit on that surface (see PIN_HEIGHT_REFERENCE).
     const worldTerrain = Cesium.Terrain.fromWorldTerrain();
-    terrainReadyRef.current = new Promise<Cesium.TerrainProvider>((resolve) => {
+    // Settles on failure as well as success. Resolving only from readyEvent
+    // meant an Ion 401 or an offline start left this promise pending forever,
+    // so the `await` in groundHeights() never returned, its catch never ran,
+    // and every dot silently kept height 0 — the sea-level anchor the
+    // sampling exists to avoid. undefined here is the documented
+    // "terrain unavailable, draw on the ellipsoid" path.
+    terrainReadyRef.current = new Promise<Cesium.TerrainProvider | undefined>((resolve) => {
       if (worldTerrain.ready) {
         resolve(worldTerrain.provider);
         return;
       }
       worldTerrain.readyEvent.addEventListener((provider) => resolve(provider));
+      worldTerrain.errorEvent.addEventListener(() => resolve(undefined));
+      setTimeout(() => resolve(undefined), TERRAIN_READY_TIMEOUT_MS);
     });
 
     const viewer = new Cesium.Viewer(containerRef.current, {
@@ -149,13 +183,17 @@ export function CesiumGlobe({ pins, selectedAccountId, onSelectAccount }: Cesium
     viewer.camera.setView({
       destination: Cesium.Cartesian3.fromDegrees(BRAZIL_CENTER_LONGITUDE, BRAZIL_CENTER_LATITUDE, SPACE_ALTITUDE_METERS),
     });
-    viewer.camera.flyTo({
+    flyCamera(viewer, {
       destination: BRAZIL_RECTANGLE,
       duration: FLY_IN_DURATION_SECONDS,
     });
 
     // Explicit rather than relying on Cesium's defaults — belt-and-suspenders
     // against any input getting silently disabled by a future config change.
+    //
+    // Deliberately after the fly-in above, which starts by disabling inputs:
+    // re-enabling here makes the entrance interruptible, so a scroll during
+    // those three seconds zooms instead of doing nothing.
     const cameraController = viewer.scene.screenSpaceCameraController;
     cameraController.enableZoom = true;
     cameraController.enableRotate = true;
@@ -195,11 +233,19 @@ export function CesiumGlobe({ pins, selectedAccountId, onSelectAccount }: Cesium
 
     viewerRef.current = viewer;
 
+    // Handle for checking camera state from the console when the map
+    // misbehaves — `__cesium.scene.screenSpaceCameraController.enableInputs`
+    // is the first thing to look at if zoom or rotate ever goes dead again.
+    if (import.meta.env.DEV) {
+      (window as unknown as { __cesium?: Cesium.Viewer }).__cesium = viewer;
+    }
+
     const resizeObserver = new ResizeObserver(() => viewer.resize());
     resizeObserver.observe(containerRef.current);
 
     return () => {
       resizeObserver.disconnect();
+      viewer.camera.cancelFlight();
       viewer.destroy();
       viewerRef.current = null;
       accountsDataSourceRef.current = null;
@@ -296,20 +342,27 @@ export function CesiumGlobe({ pins, selectedAccountId, onSelectAccount }: Cesium
   // Selecting an account recenters the camera on it but keeps whatever
   // altitude the user is currently at — clicking a pin should never yank
   // the zoom level out from under someone who's already framed a close-up.
+  //
+  // Depends on selectedAccountId ALONE, and reads the pins from a ref. `pins`
+  // is a filtered array rebuilt on every legend toggle and every map-pin
+  // refetch (refreshAfterUpload calls one), so having it as a dependency
+  // meant routine data refreshes re-flew the camera at an unchanged
+  // selection — and each of those flights disables camera input while it
+  // runs, which is what killed mouse-wheel zoom.
   useEffect(() => {
     const viewer = viewerRef.current;
     if (!viewer) return;
 
-    const pin = pins.find((p) => p.id === selectedAccountId);
+    const pin = pinsRef.current.find((p) => p.id === selectedAccountId);
     if (!pin) return;
 
     const currentAltitude = viewer.camera.positionCartographic.height;
 
-    viewer.camera.flyTo({
+    flyCamera(viewer, {
       destination: Cesium.Cartesian3.fromDegrees(pin.coordinate.longitude, pin.coordinate.latitude, currentAltitude),
       duration: 1.2,
     });
-  }, [selectedAccountId, pins]);
+  }, [selectedAccountId]);
 
   return (
     <div className="cesium-globe">
