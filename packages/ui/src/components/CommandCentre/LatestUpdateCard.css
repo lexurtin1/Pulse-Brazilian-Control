@@ -12,7 +12,7 @@
 
 .latest-update-tile {
   position: relative;
-  gap: var(--space-4);
+  gap: var(--space-3);
   transition: var(--transition-interactive);
 }
 
@@ -32,8 +32,10 @@
   align-items: baseline;
   justify-content: space-between;
   gap: var(--space-3);
-  /* Clears the pencil, which is absolutely positioned in this corner. */
-  padding-right: var(--space-6);
+  /* Clears the pencil, which is absolutely positioned in this corner —
+     26px of button plus its offset, and the card's padding is tighter than
+     the button's inset so this can't be inherited from it. */
+  padding-right: var(--space-8);
 }
 
 .latest-update-tile__stamp {
@@ -67,8 +69,8 @@
 
 .latest-update-tile__edit {
   position: absolute;
-  top: var(--space-4);
-  right: var(--space-4);
+  top: var(--space-3);
+  right: var(--space-3);
   /* Above the stretched hit area, or the pencil would never be clickable. */
   z-index: 1;
   display: inline-flex;
@@ -97,13 +99,14 @@
 
 .latest-update__headline {
   display: -webkit-box;
-  font-size: var(--text-base);
+  font-size: var(--text-sm);
   font-weight: 600;
   line-height: 1.35;
   color: var(--color-text);
-  /* Three lines, then ellipsis — fixed, so the tile can never change height
-     with its content and resize the KPI row beside it. */
-  -webkit-line-clamp: 3;
+  /* Two lines, then ellipsis — fixed, so the tile can never change height
+     with its content and resize the KPI row beside it. The full headline is
+     one click away in the panel, so trading the third line for map is cheap. */
+  -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
@@ -126,8 +129,8 @@
 .latest-update-tile__fact {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding: var(--space-2) var(--space-3);
+  gap: 1px;
+  padding: 5px var(--space-3);
   border-left: 2px solid var(--color-border);
   border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
   background: var(--color-surface-offset);
@@ -154,7 +157,7 @@
 }
 
 .latest-update-tile__fact-date {
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   color: var(--color-text);
