@@ -5,14 +5,17 @@ import type {
   AccountSummaryDto,
   ActiveAccountsSummaryDto,
   DashboardFreshnessDto,
+  ExpansionUpdateDto,
   ImportLocationCsvResultDto,
   ImportPipelineCsvResultDto,
   LocationRecordMapPinDto,
+  OpenDealsResultDto,
   PipelineSummaryDto,
   ProcessDocumentUploadResultDto,
+  ReconcileSalesforceAccountsResultDto,
   RunMarketResearchSweepResult,
   SignalDto,
-  TopOpenDealsResultDto,
+  UpdateExpansionUpdateCommand,
 } from "@pulse-brazil/application";
 
 async function fetchJson<T>(path: string): Promise<T> {
@@ -81,17 +84,41 @@ export function fetchPipelineSummary(): Promise<PipelineSummaryDto | null> {
   return fetchJson("/api/pipeline/summary");
 }
 
-export function fetchTopOpenDeals(): Promise<TopOpenDealsResultDto | null> {
-  return fetchJson("/api/pipeline/top-open-deals");
+export function fetchOpenDeals(): Promise<OpenDealsResultDto | null> {
+  return fetchJson("/api/pipeline/open-deals");
 }
 
 export function fetchDashboardFreshness(): Promise<DashboardFreshnessDto> {
   return fetchJson("/api/dashboard/freshness");
 }
 
+/** `null` until the first call note or meeting document has been ingested. */
+export function fetchLatestUpdate(): Promise<ExpansionUpdateDto | null> {
+  return fetchJson("/api/dashboard/latest-update");
+}
+
+/** Only the fields present in `patch` are changed, and each one becomes pinned against future document ingests. */
+export async function saveLatestUpdate(patch: UpdateExpansionUpdateCommand): Promise<ExpansionUpdateDto> {
+  const response = await fetch("/api/dashboard/latest-update", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(patch),
+  });
+  const payload = (await response.json().catch(() => null)) as (ExpansionUpdateDto & { error?: string }) | null;
+  if (!response.ok) {
+    throw new Error(payload?.error ?? `/api/dashboard/latest-update PATCH responded with ${response.status}`);
+  }
+  return payload as ExpansionUpdateDto;
+}
+
+/** Enriches existing accounts from a Salesforce account export — this is what populates the client types the map colours by. Never creates accounts. */
+export function reconcileSalesforceAccounts(params: { csvText: string }): Promise<ReconcileSalesforceAccountsResultDto> {
+  return postJson("/api/accounts", params);
+}
+
 export function ingestDocument(params: {
   content: string;
-  mimeType: "text/plain" | "application/pdf";
+  mimeType: "text/plain" | "application/pdf" | "image/png" | "image/jpeg" | "image/webp" | "image/gif";
   connectorSource: string;
   originalFilename?: string;
 }): Promise<ProcessDocumentUploadResultDto> {

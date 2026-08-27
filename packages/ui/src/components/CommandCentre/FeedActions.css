@@ -1,9 +1,16 @@
-.feed-controls__actions {
+/*
+ * The upload / sweep / clear-feed trio and the shared button they are built
+ * from. These used to live on a KPI tile of their own; the buttons outlived
+ * the tile — they are now in the command header, and .feed-action-button is
+ * also the secondary button style the Latest Update panel uses.
+ */
+.feed-actions {
   display: flex;
-  gap: var(--space-3);
+  align-items: center;
+  gap: var(--space-2);
 }
 
-.feed-controls__perplexity {
+.feed-actions__perplexity {
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -45,6 +52,15 @@
 .feed-action-button:focus-visible {
   outline: 2px solid var(--color-primary);
   outline-offset: 2px;
+}
+
+/* Header scale: the same buttons, sized to sit in a 60px bar next to the
+   clocks rather than to fill a card. */
+.feed-actions .feed-action-button {
+  flex: none;
+  padding: 5px 12px;
+  border-radius: var(--radius-full);
+  font-size: 10px;
 }
 
 /* Upload document — Calastone Green accent, distinct from the Perplexity

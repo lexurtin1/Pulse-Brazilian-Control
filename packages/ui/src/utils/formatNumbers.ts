@@ -53,3 +53,26 @@ export function formatCountDelta(value: number): string {
   const sign = rounded > 0 ? "+" : rounded < 0 ? "−" : "";
   return `${sign}${formatCount(Math.abs(rounded))}`;
 }
+
+const relativeDayFormatter = new Intl.RelativeTimeFormat("en-GB", { numeric: "auto" });
+
+/**
+ * "today" / "yesterday" / "6 days ago" / "in 3 days" — for the Brazil update,
+ * where how long ago something happened is the point and the exact date is
+ * detail.
+ *
+ * Both sides are floored to local midnight before differencing, so "6 days
+ * ago" means six calendar days, not 144 hours: a contact yesterday evening
+ * should never read as "today" just because it was under 24 hours ago.
+ */
+export function formatRelativeDay(iso: string, now: Date = new Date()): string {
+  const target = new Date(iso);
+  if (Number.isNaN(target.getTime())) return "";
+
+  const startOfDay = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+  const days = Math.round((startOfDay(target) - startOfDay(now)) / 86_400_000);
+
+  if (Math.abs(days) < 7) return relativeDayFormatter.format(days, "day");
+  if (Math.abs(days) < 28) return relativeDayFormatter.format(Math.round(days / 7), "week");
+  return relativeDayFormatter.format(Math.round(days / 30), "month");
+}

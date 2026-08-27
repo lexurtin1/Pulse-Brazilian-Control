@@ -1,5 +1,4 @@
 import type { IAccountRepository } from "@pulse-brazil/application";
-import { toEvidenceReference } from "@pulse-brazil/application";
 import {
   Account,
   type AccountId,
@@ -7,21 +6,16 @@ import {
   AccountType,
   asAccountId,
   asOfficeLocationId,
-  asSignalId,
-  asTemperatureAssessmentId,
   asThemeId,
   ClientType,
-  ConfidenceScore,
   Coordinate,
   ExternalReference,
   ExternalSystem,
   GeographicScope,
   LocationVerificationState,
   OfficeLocation,
-  TemperatureAssessment,
-  TemperatureBand,
 } from "@pulse-brazil/domain";
-import type { Pool } from "@neondatabase/serverless";
+import type { Pool, PoolClient } from "@neondatabase/serverless";
 
 interface CoordinateJson {
   latitude: number;
@@ -38,25 +32,6 @@ interface OfficeLocationJson {
   isPrimary: boolean;
 }
 
-interface EvidenceReferenceJson {
-  kind: string;
-  referenceId: string | null;
-  excerpt: string | null;
-  locator: string | null;
-}
-
-interface TemperatureAssessmentJson {
-  id: string;
-  accountId: string;
-  band: string;
-  rationale: string;
-  evidence: EvidenceReferenceJson[];
-  assessedAt: string;
-  assessedBy: string;
-  confidence: number;
-  nextAction: string | null;
-}
-
 interface ExternalReferenceJson {
   system: string;
   externalId: string;
@@ -71,8 +46,6 @@ interface AccountRow {
   geographic_scope: { countryCode: string; region: string | null; city: string | null };
   office_locations: OfficeLocationJson[];
   linked_theme_ids: string[];
-  linked_signal_ids: string[];
-  latest_temperature: TemperatureAssessmentJson | null;
   external_references: ExternalReferenceJson[];
   client_types: string[];
   account_owner: string | null;
@@ -130,27 +103,6 @@ function officeLocationToJson(office: OfficeLocation): OfficeLocationJson {
   };
 }
 
-function temperatureAssessmentFromJson(json: TemperatureAssessmentJson): TemperatureAssessment {
-  return TemperatureAssessment.of({
-    id: asTemperatureAssessmentId(json.id),
-    accountId: asAccountId(json.accountId),
-    band: json.band as TemperatureBand,
-    rationale: json.rationale,
-    evidence: json.evidence.map((evidenceJson) =>
-      toEvidenceReference({
-        kind: evidenceJson.kind,
-        referenceId: evidenceJson.referenceId ?? undefined,
-        excerpt: evidenceJson.excerpt ?? undefined,
-        locator: evidenceJson.locator ?? undefined,
-      }),
-    ),
-    assessedAt: new Date(json.assessedAt),
-    assessedBy: json.assessedBy,
-    confidence: ConfidenceScore.of(json.confidence),
-    nextAction: json.nextAction ?? undefined,
-  });
-}
-
 function externalReferenceFromJson(json: ExternalReferenceJson): ExternalReference {
   return ExternalReference.of({
     system: json.system as ExternalSystem,
@@ -177,8 +129,6 @@ function rowToAccount(row: AccountRow): Account {
       }),
       officeLocations: row.office_locations.map(officeLocationFromJson),
       linkedThemeIds: row.linked_theme_ids.map(asThemeId),
-      linkedSignalIds: row.linked_signal_ids.map(asSignalId),
-      latestTemperature: row.latest_temperature ? temperatureAssessmentFromJson(row.latest_temperature) : undefined,
       externalReferences: row.external_references.map(externalReferenceFromJson),
       clientTypes: row.client_types.map((value) => value as ClientType),
       accountOwner: row.account_owner ?? undefined,
@@ -190,63 +140,31 @@ function rowToAccount(row: AccountRow): Account {
   }
 }
 
-/**
- * linked_signal_ids and latest_temperature/temperature_band are no longer
- * columns on accounts (migrations/019_canonicalize_account_signal_links.sql,
- * migrations/020_canonicalize_temperature_assessments.sql) — account_signals
- * and temperature_assessments are now the sole sources of truth, matching
- * Account's own framing of these as a "denormalized read convenience".
- * Computed here on every read so the row still matches what rowToAccount
- * expects; save() no longer writes either column.
- */
-const ACCOUNT_COMPUTED_COLUMNS = `
-  COALESCE(
-    (SELECT jsonb_agg(account_signals.signal_id) FROM account_signals WHERE account_signals.account_id = accounts.id),
-    '[]'::jsonb
-  ) AS linked_signal_ids,
-  (
-    SELECT jsonb_build_object(
-      'id', ta.id,
-      'accountId', ta.account_id,
-      'band', ta.band,
-      'rationale', ta.rationale,
-      'evidence', ta.evidence,
-      'assessedAt', ta.assessed_at,
-      'assessedBy', ta.assessed_by,
-      'confidence', ta.confidence,
-      'nextAction', ta.next_action
-    )
-    FROM temperature_assessments ta
-    WHERE ta.account_id = accounts.id
-    ORDER BY ta.assessed_at DESC, ta.created_at DESC, ta.id DESC
-    LIMIT 1
-  ) AS latest_temperature
-`;
-
 /** Satisfies IAccountRepository. No ORM — plain parameterised SQL against the accounts table (see migrations/001_create_accounts.sql). */
 export class PostgresAccountRepository implements IAccountRepository {
-  constructor(private readonly pool: Pool) {}
+  constructor(private readonly pool: Pool | PoolClient) {}
 
   async findById(id: AccountId): Promise<Account | null> {
-    const { rows } = await this.pool.query<AccountRow>(
-      `SELECT accounts.*, ${ACCOUNT_COMPUTED_COLUMNS} FROM accounts WHERE id = $1`,
-      [id],
-    );
+    const { rows } = await this.pool.query<AccountRow>("SELECT * FROM accounts WHERE id = $1", [id]);
+    const [row] = rows;
+    return row ? rowToAccount(row) : null;
+  }
+
+  /** Prevents concurrent Account deletion while a transaction creates a relationship to it. */
+  async findByIdForLink(id: AccountId): Promise<Account | null> {
+    const { rows } = await this.pool.query<AccountRow>("SELECT * FROM accounts WHERE id = $1 FOR KEY SHARE", [id]);
     const [row] = rows;
     return row ? rowToAccount(row) : null;
   }
 
   async findAll(): Promise<Account[]> {
-    const { rows } = await this.pool.query<AccountRow>(
-      `SELECT accounts.*, ${ACCOUNT_COMPUTED_COLUMNS} FROM accounts ORDER BY name`,
-    );
+    const { rows } = await this.pool.query<AccountRow>("SELECT * FROM accounts ORDER BY name");
     return rows.map(rowToAccount);
   }
 
   async findAllWithCoordinates(): Promise<Account[]> {
     const { rows } = await this.pool.query<AccountRow>(`
-      SELECT accounts.*, ${ACCOUNT_COMPUTED_COLUMNS}
-      FROM accounts
+      SELECT * FROM accounts
       WHERE EXISTS (
         SELECT 1 FROM jsonb_array_elements(office_locations) AS office
         WHERE (office->'verifiedCoordinate'->>'latitude') IS NOT NULL

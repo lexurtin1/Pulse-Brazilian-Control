@@ -1,3 +1,5 @@
+import { unzip } from "./zip.js";
+
 /**
  * Minimal XLSX reader — just enough of the SpreadsheetML surface to turn a
  * Salesforce Excel export into the same CSV text the existing importers
@@ -7,8 +9,8 @@
  * No npm dependency: an .xlsx is a ZIP of XML, and both halves are small,
  * self-contained algorithms — consistent with this project's
  * dependency-conservatism (see parseCsv's and GeocoderAdapter's precedent).
- * Inflating uses the platform's DecompressionStream, present in every
- * browser this app already requires for Cesium, and in Node 18+ for tests.
+ * The ZIP half lives in ./zip.ts because .docx needs the identical
+ * container handling; only the SpreadsheetML parsing is here.
  *
  * The awkward part is not the format, it is Salesforce: an Excel export is
  * the *formatted report*, not a flat table. It carries a title block, a
@@ -53,76 +55,6 @@ export interface XlsxSheet {
   name: string;
   /** Row-major. Excel's 1-indexed sparse rows/columns are flattened and hole-filled with "". */
   cells: string[][];
-}
-
-// ---------------------------------------------------------------------------
-// ZIP
-// ---------------------------------------------------------------------------
-
-async function inflateRaw(data: Uint8Array<ArrayBuffer>): Promise<Uint8Array<ArrayBuffer>> {
-  const stream = new DecompressionStream("deflate-raw");
-  const written = (async () => {
-    const writer = stream.writable.getWriter();
-    await writer.write(data);
-    await writer.close();
-  })();
-  const inflated = new Uint8Array(await new Response(stream.readable).arrayBuffer());
-  await written;
-  return inflated;
-}
-
-/**
- * Reads the ZIP central directory rather than walking local file headers —
- * a local header may defer its sizes to a trailing data descriptor, the
- * central directory never does.
- */
-async function unzip(buffer: ArrayBuffer): Promise<Map<string, Uint8Array<ArrayBuffer>>> {
-  const view = new DataView(buffer);
-  const bytes = new Uint8Array(buffer);
-
-  let endOfCentralDirectory = -1;
-  for (let i = bytes.length - 22; i >= 0 && i >= bytes.length - 22 - 0xffff; i--) {
-    if (view.getUint32(i, true) === 0x06054b50) {
-      endOfCentralDirectory = i;
-      break;
-    }
-  }
-  if (endOfCentralDirectory < 0) {
-    throw new Error("This doesn't look like an Excel file — no ZIP end-of-central-directory record found.");
-  }
-
-  const entryCount = view.getUint16(endOfCentralDirectory + 10, true);
-  let offset = view.getUint32(endOfCentralDirectory + 16, true);
-  if (offset === 0xffffffff) throw new Error("ZIP64 Excel files are not supported.");
-
-  const files = new Map<string, Uint8Array<ArrayBuffer>>();
-  const utf8 = new TextDecoder("utf-8");
-
-  for (let entry = 0; entry < entryCount; entry++) {
-    if (view.getUint32(offset, true) !== 0x02014b50) break;
-    const method = view.getUint16(offset + 10, true);
-    const compressedSize = view.getUint32(offset + 20, true);
-    const nameLength = view.getUint16(offset + 28, true);
-    const extraLength = view.getUint16(offset + 30, true);
-    const commentLength = view.getUint16(offset + 32, true);
-    const localHeaderOffset = view.getUint32(offset + 42, true);
-    const name = utf8.decode(bytes.subarray(offset + 46, offset + 46 + nameLength));
-
-    const localNameLength = view.getUint16(localHeaderOffset + 26, true);
-    const localExtraLength = view.getUint16(localHeaderOffset + 28, true);
-    const dataStart = localHeaderOffset + 30 + localNameLength + localExtraLength;
-    const data = bytes.subarray(dataStart, dataStart + compressedSize);
-
-    if (method === 0) {
-      files.set(name, data);
-    } else if (method === 8) {
-      files.set(name, await inflateRaw(data));
-    }
-
-    offset += 46 + nameLength + extraLength + commentLength;
-  }
-
-  return files;
 }
 
 // ---------------------------------------------------------------------------
@@ -312,7 +244,7 @@ function parseSheet(xml: string, context: SheetContext): string[][] {
 
 /** Sheets in workbook (tab) order, so "the first sheet" means the one the user sees first. */
 export async function readXlsxSheets(buffer: ArrayBuffer): Promise<XlsxSheet[]> {
-  const files = await unzip(buffer);
+  const files = await unzip(buffer, "Excel");
   const utf8 = new TextDecoder("utf-8");
   const read = (path: string): string | undefined => {
     const data = files.get(path);
@@ -401,17 +333,75 @@ export function sheetToCsvText(sheet: XlsxSheet, isHeaderRow: (headers: string[]
 }
 
 /**
+ * A Salesforce *summary/matrix* report pivots stages across the columns and
+ * shows only "Sum of ..." / "Record Count" aggregates — the individual
+ * opportunities aren't in the file at all, so no importer can recover them.
+ * Worth naming explicitly: it is an easy report type to export by accident,
+ * and "couldn't find a header row" gives no clue what to do about it.
+ */
+function looksLikeMatrixReport(sheet: XlsxSheet): boolean {
+  for (const row of sheet.cells.slice(0, 40)) {
+    let aggregateHeadings = 0;
+    for (const cell of row) {
+      const value = cell.trim();
+      if (value.endsWith("→")) return true; // the pivot's axis label, e.g. "Stage →"
+      if (/^sum of /i.test(value) || /^record count$/i.test(value)) aggregateHeadings += 1;
+    }
+    if (aggregateHeadings >= 2) return true;
+  }
+  return false;
+}
+
+/**
+ * The row most likely *meant* to be the header of a sheet we couldn't match:
+ * the first row of at least three non-empty cells that are all non-numeric.
+ * Data rows almost always carry a number; header rows never do. Used only to
+ * make the failure message specific about what the file actually contains.
+ */
+function likelyHeaderRow(sheet: XlsxSheet): string[] | null {
+  for (const row of sheet.cells.slice(0, 40)) {
+    const values = row.map(normalizeHeaderCell).filter((cell) => cell !== "");
+    if (values.length >= 3 && values.every((value) => !Number.isFinite(Number(value)))) return values;
+  }
+  return null;
+}
+
+/**
  * Converts the first sheet containing a recognised header row into CSV
  * text. Throws with a readable message when no sheet does — far better than
- * silently importing a report's title block as data.
+ * silently importing a report's title block as data. `explainHeaderMiss`
+ * lets the caller, which owns the column contracts, say what a near-miss
+ * header was actually missing.
  */
-export async function xlsxToCsvText(buffer: ArrayBuffer, isHeaderRow: (headers: string[]) => boolean): Promise<string> {
+export async function xlsxToCsvText(
+  buffer: ArrayBuffer,
+  isHeaderRow: (headers: string[]) => boolean,
+  explainHeaderMiss?: (headers: string[]) => string | undefined,
+): Promise<string> {
   const sheets = await readXlsxSheets(buffer);
   for (const sheet of sheets) {
     const csvText = sheetToCsvText(sheet, isHeaderRow);
     if (csvText !== null) return csvText;
   }
+
+  const sheet = sheets[0]!;
+  const alsoLooked = sheets.length > 1 ? ` (also looked in: ${sheets.slice(1).map((other) => other.name).join(", ")})` : "";
+
+  if (looksLikeMatrixReport(sheet)) {
+    throw new Error(
+      `"${sheet.name}" is a Salesforce summary report — it holds only stage totals and record counts, ` +
+        `not the individual opportunities, so there are no deals in it to import. Re-run the report in Salesforce ` +
+        `with the Tabular (details) format and upload that instead${alsoLooked}.`,
+    );
+  }
+
+  const candidate = likelyHeaderRow(sheet);
+  const explanation = candidate ? explainHeaderMiss?.(candidate) : undefined;
+  if (explanation) throw new Error(`"${sheet.name}": ${explanation}${alsoLooked}.`);
+
   throw new Error(
-    `Couldn't find a recognisable header row in this Excel file (looked in: ${sheets.map((sheet) => sheet.name).join(", ")}).`,
+    candidate
+      ? `"${sheet.name}" doesn't match either import format. Columns found: ${candidate.join(", ")}${alsoLooked}.`
+      : `Couldn't find a header row in "${sheet.name}"${alsoLooked}.`,
   );
 }

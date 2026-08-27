@@ -8,10 +8,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     return;
   }
   try {
-    const topDeals = await getCompositionRoot().getTopOpenDeals.execute();
-    res.status(200).json(topDeals);
+    const openDeals = await getCompositionRoot().getOpenDeals.execute();
+    res.status(200).json(openDeals);
   } catch (error) {
-    console.error("[api/pipeline/top-open-deals]", error);
+    console.error("[api/pipeline/open-deals]", error);
     res.status(500).json({ error: "Internal server error" });
   }
 }

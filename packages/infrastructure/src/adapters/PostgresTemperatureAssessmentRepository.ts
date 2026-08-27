@@ -64,16 +64,28 @@ export class PostgresTemperatureAssessmentRepository implements ITemperatureAsse
 
   async findLatestForAccount(accountId: AccountId): Promise<TemperatureAssessment | null> {
     const { rows } = await this.pool.query<TemperatureAssessmentRow>(
-      "SELECT * FROM temperature_assessments WHERE account_id = $1 ORDER BY assessed_at DESC LIMIT 1",
+      "SELECT * FROM temperature_assessments WHERE account_id = $1 ORDER BY assessed_at DESC, created_at DESC, id DESC LIMIT 1",
       [accountId],
     );
     const [row] = rows;
     return row ? rowToTemperatureAssessment(row) : null;
   }
 
+  async findLatestForAccounts(accountIds: readonly AccountId[]): Promise<Map<AccountId, TemperatureAssessment>> {
+    if (accountIds.length === 0) return new Map();
+    const { rows } = await this.pool.query<TemperatureAssessmentRow>(
+      `SELECT DISTINCT ON (account_id) *
+       FROM temperature_assessments
+       WHERE account_id = ANY($1::text[])
+       ORDER BY account_id, assessed_at DESC, created_at DESC, id DESC`,
+      [[...accountIds]],
+    );
+    return new Map(rows.map((row) => [asAccountId(row.account_id), rowToTemperatureAssessment(row)]));
+  }
+
   async findHistoryForAccount(accountId: AccountId): Promise<TemperatureAssessment[]> {
     const { rows } = await this.pool.query<TemperatureAssessmentRow>(
-      "SELECT * FROM temperature_assessments WHERE account_id = $1 ORDER BY assessed_at DESC",
+      "SELECT * FROM temperature_assessments WHERE account_id = $1 ORDER BY assessed_at DESC, created_at DESC, id DESC",
       [accountId],
     );
     return rows.map(rowToTemperatureAssessment);

@@ -9,6 +9,7 @@
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
     "migrate": "tsx src/db/run-migrations.ts",
     "seed": "tsx src/db/seed.ts",
     "reconcile:accounts": "tsx src/db/reconcile-salesforce-accounts.ts",

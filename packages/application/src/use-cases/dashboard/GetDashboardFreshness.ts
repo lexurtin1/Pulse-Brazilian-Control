@@ -3,14 +3,15 @@ import type { DashboardFreshnessDto, SourceFreshnessDto, SourceFreshnessStatus, 
 import type { IDocumentRepository } from "../../ports/IDocumentRepository.js";
 import type { IMarketResearchLogRepository } from "../../ports/IMarketResearchLogRepository.js";
 
-const PIPELINE_FRESH_HOURS = 48;
-const PIPELINE_STALE_DAYS = 7;
+const UPLOAD_FRESH_HOURS = 48;
+const UPLOAD_STALE_DAYS = 7;
 
-function pipelineStatus(asOf: Date | null, now: Date): SourceFreshnessStatus {
+/** Shared by both upload-driven sources — a pipeline export and a call note age at the same rate, because what ages is our picture of Brazil, not the file format. */
+function uploadStatus(asOf: Date | null, now: Date): SourceFreshnessStatus {
   if (!asOf) return "never";
   const hoursSince = (now.getTime() - asOf.getTime()) / (1000 * 60 * 60);
-  if (hoursSince <= PIPELINE_FRESH_HOURS) return "fresh";
-  if (hoursSince <= PIPELINE_STALE_DAYS * 24) return "aging";
+  if (hoursSince <= UPLOAD_FRESH_HOURS) return "fresh";
+  if (hoursSince <= UPLOAD_STALE_DAYS * 24) return "aging";
   return "stale";
 }
 
@@ -40,23 +41,41 @@ function sweepStatus(asOf: Date | null, now: Date): SourceFreshnessStatus {
   return "stale";
 }
 
-/** "never" is at least as urgent as "stale" for the combined ring — a source that's never produced data shouldn't be masked by the other source being fresh. */
+/** "never" ranks with "stale": for the ring's purposes a source that has never run and one that stopped running are equally useless. */
 const STATUS_SEVERITY: Record<SourceFreshnessStatus, number> = { fresh: 0, aging: 1, stale: 2, never: 2 };
 
-function worstOf(a: SourceFreshnessStatus, b: SourceFreshnessStatus): OverallFreshnessStatus {
-  const worst = Math.max(STATUS_SEVERITY[a], STATUS_SEVERITY[b]);
-  if (worst === 0) return "fresh";
-  if (worst === 1) return "aging";
+/**
+ * Best-of, not worst-of. The ring answers "is anything here current?", and
+ * under worst-of it answered "is everything current?" — which meant one
+ * source nobody had touched in six weeks pinned it red no matter how much
+ * fresh material arrived, so it stopped carrying information. A stale
+ * source is still visible: every source keeps its own dot in the tooltip,
+ * and that is where a lapsed pipeline export is meant to be read.
+ */
+function bestOf(...statuses: readonly SourceFreshnessStatus[]): OverallFreshnessStatus {
+  const best = Math.min(...statuses.map((status) => STATUS_SEVERITY[status]));
+  if (best === 0) return "fresh";
+  if (best === 1) return "aging";
   return "stale";
 }
 
 /**
- * Aggregate freshness for the header ring: the worst-of two independently
- * tracked sources. Pipeline freshness comes from the latest uploaded
- * PipelineDataset document (same source GetPipelineSummary reads). Sweep
- * freshness comes from market_research_log, not from Signals — a quiet
- * news week produces no Signal at all (see RunMarketResearchSweep), so
- * Signals can't distinguish "sweep is broken" from "nothing happened."
+ * Aggregate freshness for the header ring: the best-of three independently
+ * tracked sources.
+ *
+ * Pipeline freshness comes from the latest uploaded PipelineDataset
+ * document (same source GetPipelineSummary reads). Sweep freshness comes
+ * from market_research_log, not from Signals — a quiet news week produces
+ * no Signal at all (see RunMarketResearchSweep), so Signals can't
+ * distinguish "sweep is broken" from "nothing happened."
+ *
+ * The third source is every other upload. Documents that go through
+ * ProcessDocumentUpload keep declaredType Other and let Claude infer the
+ * real type, so a call note or a set of meeting minutes matched neither of
+ * the first two sources and could not move the ring at all — you could
+ * upload a fortnight of contact notes and watch it stay red. That is what
+ * findMostRecentUploadedAt fixes: it asks when anything was last uploaded,
+ * without caring what it was.
  */
 export class GetDashboardFreshness {
   constructor(
@@ -66,15 +85,16 @@ export class GetDashboardFreshness {
 
   async execute(): Promise<DashboardFreshnessDto> {
     const now = new Date();
-    const [pipelineDocs, sweepAsOf] = await Promise.all([
+    const [pipelineDocs, sweepAsOf, documentAsOf] = await Promise.all([
       this.documents.findByDeclaredType(DocumentType.PipelineDataset),
       this.marketResearchLog.findMostRecentMarketWide(),
+      this.documents.findMostRecentUploadedAt(),
     ]);
     const pipelineAsOf = pipelineDocs[0]?.provenance.uploadedAt ?? null;
 
     const pipeline: SourceFreshnessDto = {
       label: "Salesforce pipeline",
-      status: pipelineStatus(pipelineAsOf, now),
+      status: uploadStatus(pipelineAsOf, now),
       asOf: pipelineAsOf?.toISOString(),
     };
     const marketSweep: SourceFreshnessDto = {
@@ -82,11 +102,17 @@ export class GetDashboardFreshness {
       status: sweepStatus(sweepAsOf, now),
       asOf: sweepAsOf?.toISOString(),
     };
+    const documents: SourceFreshnessDto = {
+      label: "Documents & updates",
+      status: uploadStatus(documentAsOf, now),
+      asOf: documentAsOf?.toISOString(),
+    };
 
     return {
-      overallStatus: worstOf(pipeline.status, marketSweep.status),
+      overallStatus: bestOf(pipeline.status, marketSweep.status, documents.status),
       pipeline,
       marketSweep,
+      documents,
     };
   }
 }

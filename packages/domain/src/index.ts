@@ -12,3 +12,4 @@ export * from "./context/index.js";
 export * from "./insight/index.js";
 export * from "./location/index.js";
 export * from "./pipeline/index.js";
+export * from "./update/index.js";

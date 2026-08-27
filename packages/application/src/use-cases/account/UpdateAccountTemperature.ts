@@ -83,9 +83,8 @@ function assertTemperatureBand(value: string): TemperatureBand {
 }
 
 /**
- * Records a new temperature read for an account. Assessments are
- * append-only — this never edits a past read, it creates a new one and
- * updates the account's current snapshot via Account.applyTemperatureAssessment.
+ * Records a new immutable temperature read for an account. The latest
+ * assessment is derived from history; Account carries no mirrored snapshot.
  */
 export class UpdateAccountTemperature {
   constructor(
@@ -117,9 +116,7 @@ export class UpdateAccountTemperature {
       nextAction: command.nextAction,
     });
 
-    const updatedAccount = account.applyTemperatureAssessment(assessment);
-
-    await Promise.all([this.temperature.save(assessment), this.accounts.save(updatedAccount)]);
+    await this.temperature.save(assessment);
 
     return {
       id: assessment.id,

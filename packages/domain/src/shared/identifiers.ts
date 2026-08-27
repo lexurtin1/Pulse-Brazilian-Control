@@ -22,6 +22,7 @@ export type PromptProfileId = Brand<string, "PromptProfileId">;
 export type LocationRecordId = Brand<string, "LocationRecordId">;
 export type DealId = Brand<string, "DealId">;
 export type AccountCountSnapshotId = Brand<string, "AccountCountSnapshotId">;
+export type ExpansionUpdateId = Brand<string, "ExpansionUpdateId">;
 
 export function asAccountId(value: string): AccountId {
   return value as AccountId;
@@ -61,4 +62,7 @@ export function asDealId(value: string): DealId {
 }
 export function asAccountCountSnapshotId(value: string): AccountCountSnapshotId {
   return value as AccountCountSnapshotId;
+}
+export function asExpansionUpdateId(value: string): ExpansionUpdateId {
+  return value as ExpansionUpdateId;
 }

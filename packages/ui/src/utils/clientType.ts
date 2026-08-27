@@ -1,7 +1,7 @@
 /**
  * Shared ClientType -> display treatment, used everywhere an account's
  * client type needs a color mark: map pins, the map legend, and the small
- * identity dots on Top Open Deals / Live Feed / the Account Dossier header.
+ * identity dots on Open Deals / Live Feed / the Account Dossier header.
  * One source of truth so the same client type is always the same color.
  */
 

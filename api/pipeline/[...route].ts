@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import pipelineImport from "../../packages/api/src/handlers/pipelineImport.js";
 import pipelineSummary from "../../packages/api/src/handlers/pipelineSummary.js";
-import pipelineTopOpenDeals from "../../packages/api/src/handlers/pipelineTopOpenDeals.js";
+import pipelineOpenDeals from "../../packages/api/src/handlers/pipelineOpenDeals.js";
 
 /**
  * Single catch-all function for /api/pipeline/* — the Vercel Hobby plan
@@ -15,6 +15,9 @@ import pipelineTopOpenDeals from "../../packages/api/src/handlers/pipelineTopOpe
  * the literal string "...route" instead of "route" (confirmed via a
  * temporary debug branch against the live deployment) — parsing the path
  * directly sidesteps that quirk entirely.
+ *
+ * `top-open-deals` is still accepted so a browser holding the old bundle
+ * doesn't start 404ing the moment a new one deploys.
  */
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
   const pathname = (req.url ?? "").split("?")[0] ?? "";
@@ -26,8 +29,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       return pipelineImport(req, res);
     case "summary":
       return pipelineSummary(req, res);
+    case "open-deals":
     case "top-open-deals":
-      return pipelineTopOpenDeals(req, res);
+      return pipelineOpenDeals(req, res);
     default:
       res.status(404).json({ error: "Not found" });
   }

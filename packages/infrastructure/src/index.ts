@@ -11,6 +11,7 @@ export * from "./adapters/PostgresAccountRepository.js";
 export * from "./adapters/PostgresSignalRepository.js";
 export * from "./adapters/PostgresDocumentRepository.js";
 export * from "./adapters/PostgresNoteRepository.js";
+export * from "./adapters/PostgresExpansionUpdateRepository.js";
 export * from "./adapters/PostgresInsightRepository.js";
 export * from "./adapters/PostgresContextBundleRepository.js";
 export * from "./adapters/PostgresTemperatureAssessmentRepository.js";
@@ -20,5 +21,6 @@ export * from "./adapters/PostgresAccountCountSnapshotRepository.js";
 export * from "./adapters/PerplexityMarketResearchAdapter.js";
 
 export * from "./db/pool.js";
+export * from "./db/PostgresUnitOfWork.js";
 
 export * from "./composition/CompositionRoot.js";

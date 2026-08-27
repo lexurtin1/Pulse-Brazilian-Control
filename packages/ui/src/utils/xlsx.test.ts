@@ -1,7 +1,7 @@
-import { crc32, deflateRawSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
 import { looksLikePipelineCsv, parseCsv, validatePipelineCsvRows } from "@pulse-brazil/application";
 import { xlsxToCsvText } from "./xlsx";
+import { zipFixture } from "./zip.fixture";
 
 /**
  * Fixtures are built here rather than committed: real Salesforce exports are
@@ -9,60 +9,14 @@ import { xlsxToCsvText } from "./xlsx";
  * hand-written workbook makes the Salesforce-report quirks under test —
  * preamble block, spacer columns, sort glyphs, Subtotal/Count rows, Excel
  * date serials, percent-as-fraction — visible instead of hidden in a binary.
+ * The ZIP container itself is built by the shared zip.fixture helper.
  */
 
 const isPipelineHeader = (headers: string[]) => looksLikePipelineCsv(headers);
 
-function zip(entries: { name: string; text: string }[]): ArrayBuffer {
-  const locals: Buffer[] = [];
-  const central: Buffer[] = [];
-  let offset = 0;
-
-  for (const entry of entries) {
-    const name = Buffer.from(entry.name, "utf8");
-    const uncompressed = Buffer.from(entry.text, "utf8");
-    const compressed = deflateRawSync(uncompressed);
-
-    const local = Buffer.alloc(30);
-    local.writeUInt32LE(0x04034b50, 0);
-    local.writeUInt16LE(20, 4);
-    local.writeUInt16LE(8, 8); // deflate
-    local.writeUInt32LE(crc32(uncompressed), 14);
-    local.writeUInt32LE(compressed.length, 18);
-    local.writeUInt32LE(uncompressed.length, 22);
-    local.writeUInt16LE(name.length, 26);
-
-    const header = Buffer.alloc(46);
-    header.writeUInt32LE(0x02014b50, 0);
-    header.writeUInt16LE(20, 4);
-    header.writeUInt16LE(20, 6);
-    header.writeUInt16LE(8, 10);
-    header.writeUInt32LE(crc32(uncompressed), 16);
-    header.writeUInt32LE(compressed.length, 20);
-    header.writeUInt32LE(uncompressed.length, 24);
-    header.writeUInt16LE(name.length, 28);
-    header.writeUInt32LE(offset, 42);
-
-    locals.push(local, name, compressed);
-    central.push(header, name);
-    offset += local.length + name.length + compressed.length;
-  }
-
-  const centralBuffer = Buffer.concat(central);
-  const end = Buffer.alloc(22);
-  end.writeUInt32LE(0x06054b50, 0);
-  end.writeUInt16LE(entries.length, 8);
-  end.writeUInt16LE(entries.length, 10);
-  end.writeUInt32LE(centralBuffer.length, 12);
-  end.writeUInt32LE(offset, 16);
-
-  const zipped = Buffer.concat([...locals, centralBuffer, end]);
-  return zipped.buffer.slice(zipped.byteOffset, zipped.byteOffset + zipped.byteLength) as ArrayBuffer;
-}
-
 /** styleIndex 1 = date (builtin 14), 2 = percent (builtin 9), 3 = custom currency, 0 = General. */
 function workbook(sheetRows: string, sharedStrings: string[] = []): ArrayBuffer {
-  return zip([
+  return zipFixture([
     {
       name: "xl/workbook.xml",
       text: `<workbook><workbookPr date1904="false"/><sheets><sheet name="Open Brazil Pipeline" r:id="rId3" sheetId="1"/></sheets></workbook>`,
@@ -204,10 +158,49 @@ describe("xlsxToCsvText", () => {
   });
 
   it("reports a readable error instead of importing a workbook it doesn't recognise", async () => {
-    const unrelated = `<row r="1">${inline("A1", "Region")}${inline("B1", "Headcount")}</row>`;
+    const unrelated = [
+      `<row r="1">${inline("A1", "Region")}${inline("B1", "Headcount")}${inline("C1", "Office")}</row>`,
+      `<row r="2">${inline("A2", "Sudeste")}${number("B2", 12)}${inline("C2", "Sao Paulo")}</row>`,
+    ].join("");
 
     await expect(xlsxToCsvText(workbook(unrelated), isPipelineHeader)).rejects.toThrow(
-      /Couldn't find a recognisable header row/,
+      /doesn't match either import format\. Columns found: Region, Headcount, Office/,
     );
+  });
+
+  /**
+   * The real miss reported from production (2026-08-24): a Salesforce
+   * *summary* report pivots Stage across the columns and holds only
+   * "Sum of ..." / "Record Count" aggregates. The opportunities are not in
+   * the file, so the only useful response is to name the report type.
+   */
+  it("names a Salesforce summary report rather than blaming a missing header row", async () => {
+    const matrix = [
+      `<row r="1">${inline("B1", "Open Brazil Opportunities this FY")}</row>`,
+      `<row r="2">${inline("B2", "Stage →")}${inline("D2", "Prospect")}${inline("G2", "Subtotal")}${inline("J2", "Qualified")}</row>`,
+      `<row r="3">${inline("B3", "Revenue Live Date  ↑")}${inline("D3", "Sum of Amount")}${inline("E3", "Record Count")}</row>`,
+      `<row r="4">${inline("B4", "May 2026")}${number("D4", 55200)}${number("E4", 1)}</row>`,
+    ].join("");
+
+    await expect(xlsxToCsvText(workbook(matrix), isPipelineHeader)).rejects.toThrow(
+      /is a Salesforce summary report .* Tabular \(details\) format/s,
+    );
+  });
+
+  it("names the missing column when a sheet is nearly a pipeline export", async () => {
+    // A real tabular opportunity export that carries Amount but no Expected Revenue.
+    const nearMiss = [
+      `<row r="1">${inline("A1", "Account Name  ↑")}${inline("B1", "Opportunity Name")}${inline("C1", "Stage")}${inline("D1", "Amount")}${inline("E1", "Product")}</row>`,
+      `<row r="2">${inline("A2", "Apex Group (Brazil)")}${inline("B2", "Apex Brazil - local TA")}${inline("C2", "Qualified")}${number("D2", 18000)}${inline("E2", "Order Routing")}</row>`,
+    ].join("");
+
+    const explain = (headers: string[]) => {
+      const missing = headers.some((header) => header.toLowerCase() === "opportunity name")
+        ? ["Expected Revenue"]
+        : [];
+      return missing.length > 0 ? `missing: ${missing.join(", ")}` : undefined;
+    };
+
+    await expect(xlsxToCsvText(workbook(nearMiss), isPipelineHeader, explain)).rejects.toThrow(/missing: Expected Revenue/);
   });
 });

@@ -1,12 +1,11 @@
 import { InvariantViolationError } from "../shared/errors.js";
 import { ExternalReference } from "../shared/ExternalReference.js";
 import { GeographicScope } from "../shared/GeographicScope.js";
-import type { AccountId, SignalId, ThemeId } from "../shared/identifiers.js";
+import type { AccountId, ThemeId } from "../shared/identifiers.js";
 import { AccountStatus } from "./AccountStatus.js";
 import { AccountType } from "./AccountType.js";
 import { ClientType } from "./ClientType.js";
 import { OfficeLocation } from "./OfficeLocation.js";
-import { TemperatureAssessment } from "./TemperatureAssessment.js";
 
 interface AccountProps {
   id: AccountId;
@@ -16,13 +15,6 @@ interface AccountProps {
   geographicScope: GeographicScope;
   officeLocations: readonly OfficeLocation[];
   linkedThemeIds: readonly ThemeId[];
-  /**
-   * Denormalized read convenience. Signal.linkedAccountIds is the
-   * authoritative link direction; the application layer is responsible for
-   * keeping this list in sync when signals are linked or unlinked.
-   */
-  linkedSignalIds: readonly SignalId[];
-  latestTemperature?: TemperatureAssessment;
   externalReferences: readonly ExternalReference[];
   /**
    * Real Salesforce account-export metadata — see ClientType's doc comment
@@ -52,8 +44,9 @@ function assertUniqueExternalSystems(refs: readonly ExternalReference[]): void {
 
 /**
  * The durable business entity for a Brazilian capital-markets account —
- * the aggregate root that offices, temperature history, theme/signal
- * linkage, and external identifiers all hang off of. Not a CRM mirror:
+ * the aggregate root that offices, theme linkage, and external identifiers
+ * hang off of. Temperature history and Account–Signal relationships have their
+ * own canonical relation and are not mirrored into this aggregate. Not a CRM mirror:
  * Salesforce is one external reference among possibly several, not the
  * account's identity.
  */
@@ -68,8 +61,6 @@ export class Account {
     geographicScope: GeographicScope;
     officeLocations?: readonly OfficeLocation[];
     linkedThemeIds?: readonly ThemeId[];
-    linkedSignalIds?: readonly SignalId[];
-    latestTemperature?: TemperatureAssessment;
     externalReferences?: readonly ExternalReference[];
     clientTypes?: readonly ClientType[];
     accountOwner?: string;
@@ -84,10 +75,6 @@ export class Account {
     assertOnePrimaryOffice(officeLocations);
     assertUniqueExternalSystems(externalReferences);
 
-    if (params.latestTemperature && params.latestTemperature.accountId !== params.id) {
-      throw new InvariantViolationError("Account", "latestTemperature must belong to this account");
-    }
-
     return new Account({
       id: params.id,
       name: params.name.trim(),
@@ -96,8 +83,6 @@ export class Account {
       geographicScope: params.geographicScope,
       officeLocations,
       linkedThemeIds: params.linkedThemeIds ?? [],
-      linkedSignalIds: params.linkedSignalIds ?? [],
-      latestTemperature: params.latestTemperature,
       externalReferences,
       clientTypes: params.clientTypes ?? [],
       accountOwner: params.accountOwner?.trim() || undefined,
@@ -129,12 +114,6 @@ export class Account {
   }
   get linkedThemeIds(): readonly ThemeId[] {
     return this.props.linkedThemeIds;
-  }
-  get linkedSignalIds(): readonly SignalId[] {
-    return this.props.linkedSignalIds;
-  }
-  get latestTemperature(): TemperatureAssessment | undefined {
-    return this.props.latestTemperature;
   }
   get externalReferences(): readonly ExternalReference[] {
     return this.props.externalReferences;
@@ -182,14 +161,6 @@ export class Account {
     });
   }
 
-  /** Records a new temperature read as the account's current snapshot. The full history is owned outside this aggregate. */
-  applyTemperatureAssessment(assessment: TemperatureAssessment): Account {
-    if (assessment.accountId !== this.props.id) {
-      throw new InvariantViolationError("Account", "assessment.accountId must match this account");
-    }
-    return new Account({ ...this.props, latestTemperature: assessment });
-  }
-
   linkTheme(themeId: ThemeId): Account {
     if (this.props.linkedThemeIds.includes(themeId)) return this;
     return new Account({ ...this.props, linkedThemeIds: [...this.props.linkedThemeIds, themeId] });
@@ -202,15 +173,4 @@ export class Account {
     });
   }
 
-  linkSignal(signalId: SignalId): Account {
-    if (this.props.linkedSignalIds.includes(signalId)) return this;
-    return new Account({ ...this.props, linkedSignalIds: [...this.props.linkedSignalIds, signalId] });
-  }
-
-  unlinkSignal(signalId: SignalId): Account {
-    return new Account({
-      ...this.props,
-      linkedSignalIds: this.props.linkedSignalIds.filter((id) => id !== signalId),
-    });
-  }
 }

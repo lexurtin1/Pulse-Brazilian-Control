@@ -57,11 +57,8 @@ function toExternalReferenceDto(reference: ExternalReference): ExternalReference
 }
 
 /**
- * Full account dossier view. Deliberately asks the assessment repository
- * for the latest temperature rather than trusting Account.latestTemperature
- * — for a single-account detail view, one extra query buys certainty that
- * this is the authoritative read, not whatever the account aggregate
- * happened to have cached when it was loaded.
+ * Full account dossier view. Current temperature is always projected from
+ * canonical immutable assessment history.
  */
 export class GetAccountDetail {
   constructor(
