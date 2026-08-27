@@ -1,8 +1,9 @@
 import type { ExpansionUpdateDraft } from "@pulse-brazil/domain";
-import { ExpansionUpdateField } from "@pulse-brazil/domain";
+import { asExpansionUpdateId, ExpansionUpdate, ExpansionUpdateField, ExpansionUpdateOrigin } from "@pulse-brazil/domain";
 import type { ExpansionUpdateDto, UpdateExpansionUpdateCommand } from "../../dto/update/ExpansionUpdateDto.js";
-import { NotFoundError, ValidationError } from "../../errors/ApplicationError.js";
+import { ValidationError } from "../../errors/ApplicationError.js";
 import type { IExpansionUpdateRepository } from "../../ports/IExpansionUpdateRepository.js";
+import type { IIdGenerator } from "../../ports/IIdGenerator.js";
 import { toExpansionUpdateDto, toLastContact, toNextMeeting } from "./ExpansionUpdateMapper.js";
 
 /**
@@ -14,14 +15,12 @@ import { toExpansionUpdateDto, toLastContact, toNextMeeting } from "./ExpansionU
  * case's whole job; the domain itself never sees the wire format.
  */
 export class SaveExpansionUpdateEdits {
-  constructor(private readonly updates: IExpansionUpdateRepository) {}
+  constructor(
+    private readonly updates: IExpansionUpdateRepository,
+    private readonly idGenerator: IIdGenerator,
+  ) {}
 
   async execute(command: UpdateExpansionUpdateCommand): Promise<ExpansionUpdateDto> {
-    const current = await this.updates.findCurrent();
-    if (!current) {
-      throw new NotFoundError("ExpansionUpdate", "current");
-    }
-
     const editedFields: ExpansionUpdateField[] = [];
     const patch: {
       headline?: string;
@@ -59,8 +58,41 @@ export class SaveExpansionUpdateEdits {
       throw new ValidationError("Request body must name at least one field to update");
     }
 
-    const edited = current.applyManualEdit(patch as ExpansionUpdateDraft, editedFields, new Date());
+    const current = await this.updates.findCurrent();
+    const edited = current
+      ? current.applyManualEdit(patch as ExpansionUpdateDraft, editedFields, new Date())
+      : this.createFirst(patch, editedFields);
+
     await this.updates.save(edited);
     return toExpansionUpdateDto(edited);
+  }
+
+  /**
+   * Writing the card by hand before anything has been ingested is a normal
+   * first move, not an error — this used to 404, which read as "editing
+   * doesn't save". The update is HumanDerived and cites no source document,
+   * which ExpansionUpdate.of allows precisely because the citation rule
+   * exists to stop Claude making unattributable claims, not to stop a
+   * person recording what they know.
+   */
+  private createFirst(
+    patch: ExpansionUpdateDraft,
+    editedFields: readonly ExpansionUpdateField[],
+  ): ExpansionUpdate {
+    if (!patch.headline) {
+      throw new ValidationError("headline is required when there is no update to edit yet");
+    }
+    return ExpansionUpdate.of({
+      id: asExpansionUpdateId(this.idGenerator.newId()),
+      asOf: new Date(),
+      headline: patch.headline,
+      lastContact: patch.lastContact,
+      nextMeeting: patch.nextMeeting,
+      awaitingInternal: patch.awaitingInternal ?? [],
+      nextActions: patch.nextActions ?? [],
+      sourceDocumentIds: [],
+      origin: ExpansionUpdateOrigin.HumanDerived,
+      manuallyEditedFields: editedFields,
+    });
   }
 }

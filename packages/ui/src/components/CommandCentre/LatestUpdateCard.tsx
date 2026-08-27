@@ -1,11 +1,12 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
-import { Pencil, X } from "lucide-react";
+import { Check, Pencil, X } from "lucide-react";
 import type { ExpansionUpdateDto, UpdateExpansionUpdateCommand } from "@pulse-brazil/application";
 import { saveLatestUpdate } from "../../api/client";
 import { useDialogA11y } from "../../hooks/useDialogA11y";
 import { formatRelativeDay, formatShortDate } from "../../utils/formatNumbers";
 import "./CommandCentre.css";
+import "./FeedActions.css";
 import "./LatestUpdateCard.css";
 
 interface LatestUpdateCardProps {
@@ -15,11 +16,33 @@ interface LatestUpdateCardProps {
 
 const TITLE_ID = "latest-update-title";
 
+/** How long the "Saved" tick stays up — long enough to read, short enough not to become a permanent badge. */
+const SAVED_CONFIRMATION_MS = 4000;
+
+/** Field ids, so a section's own "Edit" link can drop the cursor straight into the matching input. */
+const FIELD_IDS = {
+  headline: "latest-update-headline",
+  lastContact: "latest-update-last-contact-date",
+  nextMeeting: "latest-update-next-meeting-date",
+  awaitingInternal: "latest-update-awaiting",
+  nextActions: "latest-update-next-actions",
+} as const;
+
+type EditableField = keyof typeof FIELD_IDS;
+
 /** Turns the multi-line textareas the panel edits into the string arrays the API takes. */
 function toLines(value: string): string[] {
   return value
     .split("\n")
     .map((line) => line.replace(/^[-•*]\s*/, "").trim())
+    .filter(Boolean);
+}
+
+/** The contact-names input is one comma-separated line, which is how people actually type a list of names. */
+function toNames(value: string): string[] {
+  return value
+    .split(",")
+    .map((name) => name.trim())
     .filter(Boolean);
 }
 
@@ -37,38 +60,90 @@ function PinnedMark({ update, field }: { update: ExpansionUpdateDto; field: stri
   );
 }
 
+/**
+ * One fact on the collapsed tile: what it is, when, and who. Renders even
+ * when there is nothing to show — a tile that grew and shrank with its own
+ * content would resize the whole KPI row every time a document landed.
+ */
+function TileFact({
+  label,
+  date,
+  detail,
+  accent,
+}: {
+  label: string;
+  date?: string;
+  detail?: string;
+  accent: "blue" | "teal";
+}) {
+  return (
+    <div className="latest-update-tile__fact" data-accent={accent} data-empty={!date || undefined}>
+      <span className="latest-update-tile__fact-label">{label}</span>
+      {date ? (
+        <>
+          <span className="latest-update-tile__fact-date">{formatShortDate(date)}</span>
+          <span className="latest-update-tile__fact-detail">
+            {formatRelativeDay(date)}
+            {detail ? ` · ${detail}` : ""}
+          </span>
+        </>
+      ) : (
+        <span className="latest-update-tile__fact-date latest-update-tile__fact-date--none">None</span>
+      )}
+    </div>
+  );
+}
+
 export function LatestUpdateCard({ latestUpdate, onUpdated }: LatestUpdateCardProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [justSaved, setJustSaved] = useState(false);
+  const [focusField, setFocusField] = useState<EditableField | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
   function close() {
     setIsOpen(false);
     setIsEditing(false);
     setSaveError(null);
+    setFocusField(null);
+  }
+
+  function openPanel(editing: boolean, field: EditableField | null = null) {
+    setIsOpen(true);
+    setIsEditing(editing);
+    setSaveError(null);
+    setFocusField(field);
+  }
+
+  function startEditing(field: EditableField | null = null) {
+    setIsEditing(true);
+    setSaveError(null);
+    setFocusField(field);
   }
 
   useDialogA11y(panelRef, isOpen, close);
 
-  // The collapsed tile is a summary line, not the update: last contact and
-  // the next meeting are what someone glancing at the strip actually wants,
-  // and the rest is one click away.
-  const footnote = latestUpdate
-    ? [
-        latestUpdate.lastContact ? `last contact ${formatRelativeDay(latestUpdate.lastContact.occurredAt)}` : null,
-        latestUpdate.nextMeeting
-          ? `next meeting ${formatShortDate(latestUpdate.nextMeeting.scheduledFor)}`
-          : "no meeting scheduled",
-      ]
-        .filter(Boolean)
-        .join(" · ")
-    : "Upload a call note or meeting minutes to populate this card";
+  // useDialogA11y parks focus on the panel's first focusable element when it
+  // opens. If a particular section asked to be edited, move focus on to that
+  // field — "Edit" next to Next meeting should land on the meeting date, not
+  // back at the headline.
+  useEffect(() => {
+    if (!isEditing || !focusField) return;
+    const input = document.getElementById(FIELD_IDS[focusField]);
+    input?.focus();
+    input?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [isEditing, focusField]);
+
+  useEffect(() => {
+    if (!justSaved) return;
+    const timer = setTimeout(() => setJustSaved(false), SAVED_CONFIRMATION_MS);
+    return () => clearTimeout(timer);
+  }, [justSaved]);
 
   async function handleSave(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!latestUpdate) return;
 
     const form = new FormData(event.currentTarget);
     const headline = String(form.get("headline") ?? "").trim();
@@ -77,16 +152,32 @@ export function LatestUpdateCard({ latestUpdate, onUpdated }: LatestUpdateCardPr
       return;
     }
 
-    const scheduledFor = String(form.get("nextMeetingDate") ?? "").trim();
-    const withWhom = String(form.get("nextMeetingWith") ?? "").trim();
-    const purpose = String(form.get("nextMeetingPurpose") ?? "").trim();
+    const meetingDate = String(form.get("nextMeetingDate") ?? "").trim();
+    const meetingWith = String(form.get("nextMeetingWith") ?? "").trim();
+    const meetingPurpose = String(form.get("nextMeetingPurpose") ?? "").trim();
 
-    // A meeting needs a date and someone to meet. Clearing either is how you
-    // say "there is no next meeting" — which is a real answer the card
-    // records, and one a later document ingest will not overwrite.
+    const contactDate = String(form.get("lastContactDate") ?? "").trim();
+    const contactNames = String(form.get("lastContactNames") ?? "").trim();
+    const contactDiscussed = String(form.get("lastContactDiscussed") ?? "").trim();
+
+    // Each composite needs the two parts that make it mean anything: a date,
+    // and either someone to meet or something that was said. Clearing either
+    // is how you record "there is none" — a real answer the card keeps, and
+    // one a later document ingest will not overwrite.
     const patch: UpdateExpansionUpdateCommand = {
       headline,
-      nextMeeting: scheduledFor && withWhom ? { scheduledFor: new Date(scheduledFor).toISOString(), withWhom, purpose } : null,
+      lastContact:
+        contactDate && contactDiscussed
+          ? {
+              occurredAt: new Date(contactDate).toISOString(),
+              contactNames: toNames(contactNames),
+              discussed: contactDiscussed,
+            }
+          : null,
+      nextMeeting:
+        meetingDate && meetingWith
+          ? { scheduledFor: new Date(meetingDate).toISOString(), withWhom: meetingWith, purpose: meetingPurpose }
+          : null,
       awaitingInternal: toLines(String(form.get("awaitingInternal") ?? "")),
       nextActions: toLines(String(form.get("nextActions") ?? "")),
     };
@@ -96,6 +187,8 @@ export function LatestUpdateCard({ latestUpdate, onUpdated }: LatestUpdateCardPr
     try {
       onUpdated(await saveLatestUpdate(patch));
       setIsEditing(false);
+      setFocusField(null);
+      setJustSaved(true);
     } catch (error) {
       setSaveError(error instanceof Error ? error.message : "Couldn't save your changes.");
     } finally {
@@ -103,21 +196,73 @@ export function LatestUpdateCard({ latestUpdate, onUpdated }: LatestUpdateCardPr
     }
   }
 
+  /** The read view's per-section shortcut into the form. */
+  function SectionEdit({ field }: { field: EditableField }) {
+    return (
+      <button type="button" className="latest-update__section-edit" onClick={() => startEditing(field)}>
+        Edit
+      </button>
+    );
+  }
+
   return (
     <>
-      <button
-        type="button"
-        className="kpi-card kpi-card--button"
-        data-accent="blue"
-        onClick={() => setIsOpen(true)}
-        aria-haspopup="dialog"
-      >
-        <span className="kpi-card__label">LATEST UPDATE · BRAZIL</span>
-        <span className="latest-update__headline" data-empty={!latestUpdate || undefined}>
-          {latestUpdate?.headline ?? "Nothing recorded yet"}
-        </span>
-        <span className="kpi-card__footnote">{footnote}</span>
-      </button>
+      <div className="kpi-card latest-update-tile" data-accent="blue">
+        <div className="latest-update-tile__top">
+          <span className="kpi-card__label">LATEST UPDATE · BRAZIL</span>
+          {latestUpdate && (
+            <span className="latest-update-tile__stamp">updated {formatRelativeDay(latestUpdate.asOf)}</span>
+          )}
+        </div>
+
+        {/* The headline button stretches over the whole tile via ::after, so
+            a click anywhere on the card opens the panel — while the pencil
+            stays a sibling rather than an invalid nested button. */}
+        <button
+          type="button"
+          className="latest-update-tile__open"
+          onClick={() => openPanel(false)}
+          aria-haspopup="dialog"
+        >
+          <span className="latest-update__headline" data-empty={!latestUpdate || undefined}>
+            {latestUpdate?.headline ?? "Nothing recorded yet"}
+          </span>
+        </button>
+
+        {latestUpdate ? (
+          <div className="latest-update-tile__facts">
+            <TileFact
+              label="LAST CONTACT"
+              accent="blue"
+              date={latestUpdate.lastContact?.occurredAt}
+              detail={latestUpdate.lastContact?.contactNames.join(", ")}
+            />
+            <TileFact
+              label="NEXT MEETING"
+              accent="teal"
+              date={latestUpdate.nextMeeting?.scheduledFor}
+              detail={latestUpdate.nextMeeting?.withWhom}
+            />
+          </div>
+        ) : (
+          <span className="kpi-card__footnote">Upload a call note or meeting minutes to populate this card</span>
+        )}
+
+        {latestUpdate && latestUpdate.awaitingInternal.length > 0 && (
+          <span className="latest-update-tile__waiting">
+            {latestUpdate.awaitingInternal.length} waiting on internally
+          </span>
+        )}
+
+        <button
+          type="button"
+          className="latest-update-tile__edit"
+          aria-label="Edit the Brazil update"
+          onClick={() => openPanel(true, "headline")}
+        >
+          <Pencil size={14} strokeWidth={2} />
+        </button>
+      </div>
 
       {isOpen && (
         <div className="latest-update-backdrop" onClick={close}>
@@ -137,16 +282,37 @@ export function LatestUpdateCard({ latestUpdate, onUpdated }: LatestUpdateCardPr
                   {latestUpdate?.headline ?? "Nothing recorded yet"}
                 </h2>
               </div>
-              <button type="button" className="latest-update-panel__close" aria-label="Close" onClick={close}>
-                <X size={18} />
-              </button>
+              <div className="latest-update-panel__actions">
+                {justSaved && (
+                  <span className="latest-update__saved" role="status">
+                    <Check size={13} strokeWidth={3} />
+                    Saved
+                  </span>
+                )}
+                {latestUpdate && !isEditing && (
+                  <button type="button" className="feed-action-button" onClick={() => startEditing()}>
+                    <Pencil size={14} strokeWidth={2} />
+                    <span>Edit</span>
+                  </button>
+                )}
+                <button type="button" className="latest-update-panel__close" aria-label="Close" onClick={close}>
+                  <X size={18} />
+                </button>
+              </div>
             </div>
 
-            {!latestUpdate && (
-              <p className="rail-card__empty">
-                Upload a call note, meeting minutes, or an email thread and Claude will draft this from it. You can correct
-                anything it gets wrong, and what you correct stays put.
-              </p>
+            {!latestUpdate && !isEditing && (
+              <>
+                <p className="rail-card__empty">
+                  Upload a call note, meeting minutes, or an email thread and Claude will draft this from it. You can
+                  correct anything it gets wrong, and what you correct stays put — or write the first version yourself.
+                </p>
+                <div className="latest-update__form-actions">
+                  <button type="button" className="upload-sheet__submit" onClick={() => startEditing("headline")}>
+                    Write it by hand
+                  </button>
+                </div>
+              </>
             )}
 
             {latestUpdate && !isEditing && (
@@ -156,6 +322,7 @@ export function LatestUpdateCard({ latestUpdate, onUpdated }: LatestUpdateCardPr
                     <h3 className="latest-update__section-title">
                       Last contact
                       <PinnedMark update={latestUpdate} field="lastContact" />
+                      <SectionEdit field="lastContact" />
                     </h3>
                     {latestUpdate.lastContact ? (
                       <>
@@ -177,12 +344,14 @@ export function LatestUpdateCard({ latestUpdate, onUpdated }: LatestUpdateCardPr
                     <h3 className="latest-update__section-title">
                       Next meeting
                       <PinnedMark update={latestUpdate} field="nextMeeting" />
+                      <SectionEdit field="nextMeeting" />
                     </h3>
                     {latestUpdate.nextMeeting ? (
                       <>
                         <p className="latest-update__meta">
                           {formatShortDate(latestUpdate.nextMeeting.scheduledFor)} ·{" "}
-                          {formatRelativeDay(latestUpdate.nextMeeting.scheduledFor)} · {latestUpdate.nextMeeting.withWhom}
+                          {formatRelativeDay(latestUpdate.nextMeeting.scheduledFor)} ·{" "}
+                          {latestUpdate.nextMeeting.withWhom}
                         </p>
                         {latestUpdate.nextMeeting.purpose && (
                           <p className="latest-update__prose">{latestUpdate.nextMeeting.purpose}</p>
@@ -197,6 +366,7 @@ export function LatestUpdateCard({ latestUpdate, onUpdated }: LatestUpdateCardPr
                     <h3 className="latest-update__section-title">
                       Waiting on internally
                       <PinnedMark update={latestUpdate} field="awaitingInternal" />
+                      <SectionEdit field="awaitingInternal" />
                     </h3>
                     {latestUpdate.awaitingInternal.length > 0 ? (
                       <ul className="latest-update__list">
@@ -213,6 +383,7 @@ export function LatestUpdateCard({ latestUpdate, onUpdated }: LatestUpdateCardPr
                     <h3 className="latest-update__section-title">
                       Next actions
                       <PinnedMark update={latestUpdate} field="nextActions" />
+                      <SectionEdit field="nextActions" />
                     </h3>
                     {latestUpdate.nextActions.length > 0 ? (
                       <ul className="latest-update__list">
@@ -235,57 +406,110 @@ export function LatestUpdateCard({ latestUpdate, onUpdated }: LatestUpdateCardPr
                       } · `}
                     updated {formatRelativeDay(latestUpdate.asOf)}
                   </span>
-                  <button type="button" className="feed-action-button" onClick={() => setIsEditing(true)}>
-                    <Pencil size={14} strokeWidth={2} />
-                    <span>Edit</span>
-                  </button>
                 </footer>
               </>
             )}
 
-            {latestUpdate && isEditing && (
+            {isEditing && (
               <form className="latest-update-panel__body latest-update__form" onSubmit={handleSave}>
                 <p className="latest-update__form-note">
                   Anything you change here is kept — the next document upload will refresh the rest, but won&rsquo;t
                   overwrite what you&rsquo;ve set.
                 </p>
 
-                <label className="latest-update__field">
+                <label className="latest-update__field" htmlFor={FIELD_IDS.headline}>
                   <span>Headline</span>
-                  <input name="headline" type="text" defaultValue={latestUpdate.headline} required />
+                  <input
+                    id={FIELD_IDS.headline}
+                    name="headline"
+                    type="text"
+                    defaultValue={latestUpdate?.headline ?? ""}
+                    required
+                  />
                 </label>
+
+                <fieldset className="latest-update__fieldset">
+                  <legend>Last contact</legend>
+                  <div className="latest-update__field-row">
+                    <label className="latest-update__field" htmlFor={FIELD_IDS.lastContact}>
+                      <span>Date</span>
+                      <input
+                        id={FIELD_IDS.lastContact}
+                        name="lastContactDate"
+                        type="date"
+                        defaultValue={latestUpdate?.lastContact?.occurredAt.slice(0, 10) ?? ""}
+                      />
+                    </label>
+                    <label className="latest-update__field">
+                      <span>Who &mdash; comma separated</span>
+                      <input
+                        name="lastContactNames"
+                        type="text"
+                        defaultValue={latestUpdate?.lastContact?.contactNames.join(", ") ?? ""}
+                      />
+                    </label>
+                  </div>
+                  <label className="latest-update__field">
+                    <span>What was discussed</span>
+                    <textarea
+                      name="lastContactDiscussed"
+                      rows={3}
+                      defaultValue={latestUpdate?.lastContact?.discussed ?? ""}
+                    />
+                  </label>
+                  <p className="latest-update__field-hint">
+                    Clear the date or the discussion to record that there was no contact.
+                  </p>
+                </fieldset>
 
                 <fieldset className="latest-update__fieldset">
                   <legend>Next meeting</legend>
                   <div className="latest-update__field-row">
-                    <label className="latest-update__field">
+                    <label className="latest-update__field" htmlFor={FIELD_IDS.nextMeeting}>
                       <span>Date</span>
                       <input
+                        id={FIELD_IDS.nextMeeting}
                         name="nextMeetingDate"
                         type="date"
-                        defaultValue={latestUpdate.nextMeeting?.scheduledFor.slice(0, 10) ?? ""}
+                        defaultValue={latestUpdate?.nextMeeting?.scheduledFor.slice(0, 10) ?? ""}
                       />
                     </label>
                     <label className="latest-update__field">
                       <span>With</span>
-                      <input name="nextMeetingWith" type="text" defaultValue={latestUpdate.nextMeeting?.withWhom ?? ""} />
+                      <input
+                        name="nextMeetingWith"
+                        type="text"
+                        defaultValue={latestUpdate?.nextMeeting?.withWhom ?? ""}
+                      />
                     </label>
                   </div>
                   <label className="latest-update__field">
                     <span>Purpose</span>
-                    <input name="nextMeetingPurpose" type="text" defaultValue={latestUpdate.nextMeeting?.purpose ?? ""} />
+                    <input name="nextMeetingPurpose" type="text" defaultValue={latestUpdate?.nextMeeting?.purpose ?? ""} />
                   </label>
-                  <p className="latest-update__field-hint">Clear the date or the name to record that nothing is scheduled.</p>
+                  <p className="latest-update__field-hint">
+                    Clear the date or the name to record that nothing is scheduled.
+                  </p>
                 </fieldset>
 
-                <label className="latest-update__field">
-                  <span>Waiting on internally — one per line</span>
-                  <textarea name="awaitingInternal" rows={3} defaultValue={latestUpdate.awaitingInternal.join("\n")} />
+                <label className="latest-update__field" htmlFor={FIELD_IDS.awaitingInternal}>
+                  <span>Waiting on internally &mdash; one per line</span>
+                  <textarea
+                    id={FIELD_IDS.awaitingInternal}
+                    name="awaitingInternal"
+                    rows={3}
+                    defaultValue={latestUpdate?.awaitingInternal.join("\n") ?? ""}
+                  />
                 </label>
 
-                <label className="latest-update__field">
-                  <span>Next actions — one per line</span>
-                  <textarea name="nextActions" rows={3} defaultValue={latestUpdate.nextActions.join("\n")} />
+                <label className="latest-update__field" htmlFor={FIELD_IDS.nextActions}>
+                  <span>Next actions &mdash; one per line</span>
+                  <textarea
+                    id={FIELD_IDS.nextActions}
+                    name="nextActions"
+                    rows={3}
+                    defaultValue={latestUpdate?.nextActions.join("\n") ?? ""}
+                  />
                 </label>
 
                 {saveError && (
@@ -299,7 +523,14 @@ export function LatestUpdateCard({ latestUpdate, onUpdated }: LatestUpdateCardPr
                     type="button"
                     className="feed-action-button"
                     onClick={() => {
+                      // With nothing saved yet there is no read view to fall
+                      // back to, so Cancel closes the panel outright.
+                      if (!latestUpdate) {
+                        close();
+                        return;
+                      }
                       setIsEditing(false);
+                      setFocusField(null);
                       setSaveError(null);
                     }}
                   >

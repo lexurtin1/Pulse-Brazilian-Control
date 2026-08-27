@@ -147,7 +147,7 @@ export class CompositionRoot {
       this.applyExtractedUpdate,
     );
     this.getLatestExpansionUpdate = new GetLatestExpansionUpdate(expansionUpdates);
-    this.saveExpansionUpdateEdits = new SaveExpansionUpdateEdits(expansionUpdates);
+    this.saveExpansionUpdateEdits = new SaveExpansionUpdateEdits(expansionUpdates, idGenerator);
     this.generateInsight = new GenerateInsight(insights, claudeService, idGenerator, this.buildContextBundle);
     this.runMarketResearchSweep = new RunMarketResearchSweep(signals, marketResearch, idGenerator, marketResearchLog);
     this.importLocationCsv = new ImportLocationCsv(locationRecords, documents, accounts, geocoder, idGenerator, accountCountSnapshots);
