@@ -48,6 +48,7 @@ function useCase(deals: Deal[], documents: SourceDocument[] = [pipelineDocument(
     findById: async () => null,
     findByAccountId: async () => [],
     findByDeclaredType: async () => documents,
+    findMostRecentUploadedAt: async () => null,
     save: async () => {},
   };
   return new GetOpenDeals(dealRepository, documentRepository);

@@ -149,6 +149,19 @@ export class PostgresDocumentRepository implements IDocumentRepository {
     return rows.map(rowToDocument);
   }
 
+  /**
+   * Reads provenance.uploadedAt rather than created_at: uploadedAt is the
+   * timestamp the rest of the system reasons about (findByDeclaredType's
+   * callers sort on it), and a backfilled row could carry a created_at that
+   * has nothing to do with when the document was actually supplied.
+   */
+  async findMostRecentUploadedAt(): Promise<Date | null> {
+    const { rows } = await this.pool.query<{ uploaded_at: Date | null }>(
+      "SELECT max((provenance->>'uploadedAt')::timestamptz) AS uploaded_at FROM documents",
+    );
+    return rows[0]?.uploaded_at ?? null;
+  }
+
   async save(document: SourceDocument): Promise<void> {
     await this.pool.query(
       `

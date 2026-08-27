@@ -10,7 +10,7 @@ function sourceTimestampLabel(source: SourceFreshnessDto): string {
   return source.asOf ? formatDateTimeLondon(source.asOf) : "Never run";
 }
 
-/** At-a-glance dashboard health: a colored ring for the worst-of two real sources (Salesforce pipeline upload, market research sweep), with the per-source breakdown on hover. See GetDashboardFreshness for the thresholds. */
+/** At-a-glance dashboard health: a colored ring for the best-of three real sources (Salesforce pipeline upload, market research sweep, any other document upload), with the per-source breakdown on hover — which is where a single lapsed source is meant to be read. See GetDashboardFreshness for the thresholds. */
 export function FreshnessIndicator({ freshness }: FreshnessIndicatorProps) {
   if (!freshness) return null;
 
@@ -22,6 +22,7 @@ export function FreshnessIndicator({ freshness }: FreshnessIndicatorProps) {
       />
       <span className="freshness-indicator__label">DATA</span>
       <div className="freshness-indicator__tooltip" role="tooltip">
+        <FreshnessRow source={freshness.documents} />
         <FreshnessRow source={freshness.pipeline} />
         <FreshnessRow source={freshness.marketSweep} />
       </div>

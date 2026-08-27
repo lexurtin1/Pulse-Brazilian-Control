@@ -1,7 +1,7 @@
 /** Per-source status. "never" is distinct from "stale" — a source that has never produced data is a different problem from one that went stale after working. */
 export type SourceFreshnessStatus = "fresh" | "aging" | "stale" | "never";
 
-/** The header ring only ever shows three colours — a "never" source still forces this to "stale" (see GetDashboardFreshness), it just isn't a fourth ring colour of its own. */
+/** The header ring only ever shows three colours — "never" is a per-source status, not a fourth ring colour. */
 export type OverallFreshnessStatus = "fresh" | "aging" | "stale";
 
 export interface SourceFreshnessDto {
@@ -12,7 +12,10 @@ export interface SourceFreshnessDto {
 }
 
 export interface DashboardFreshnessDto {
+  /** Best-of every source below, not worst-of — see GetDashboardFreshness for why. */
   overallStatus: OverallFreshnessStatus;
   pipeline: SourceFreshnessDto;
   marketSweep: SourceFreshnessDto;
+  /** Any uploaded document, whatever its type — call notes, meeting minutes, decks. */
+  documents: SourceFreshnessDto;
 }
