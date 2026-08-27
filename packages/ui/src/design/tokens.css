@@ -132,9 +132,20 @@
   --color-location-event: #b3631f;
   --color-location-visit: #7a3f8f;
 
-  /* Type */
-  --font-body: "DM Sans", "Inter", system-ui, sans-serif;
-  --font-display: "Instrument Serif", Georgia, serif;
+  /* Type
+   *
+   * Gill Sans MT is a locally-installed Microsoft face, not a webfont: it is
+   * on Windows machines with Office and is not served by Google Fonts, so
+   * the stack degrades deliberately — "Gill Sans" is the macOS cut of the
+   * same design, and Calibri/Trebuchet are the nearest humanist sans that
+   * ship broadly. Making it identical everywhere would need a licensed
+   * @font-face file.
+   *
+   * One face for everything: --font-display is an alias rather than a
+   * second family, so "display" still names the role without reintroducing
+   * a contrasting serif. */
+  --font-body: "Gill Sans MT", "Gill Sans", "Gill Sans Nova", Calibri, "Trebuchet MS", system-ui, sans-serif;
+  --font-display: var(--font-body);
 
   /* Scale */
   --text-xs: clamp(0.75rem, 0.7rem + 0.25vw, 0.875rem);

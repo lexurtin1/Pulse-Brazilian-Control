@@ -120,7 +120,8 @@
 }
 
 .freshness-indicator__row-text span {
-  font-family: ui-monospace, "SFMono-Regular", monospace;
+  font-family: var(--font-body);
+  font-variant-numeric: tabular-nums;
   color: var(--color-text-muted);
 }
 

@@ -69,7 +69,7 @@ export function PerplexitySweepButton({ onComplete, variant = "fab" }: Perplexit
 
   if (variant === "inline") {
     return (
-      <div className="feed-controls__perplexity">
+      <div className="feed-actions__perplexity">
         <button
           type="button"
           className="feed-action-button"

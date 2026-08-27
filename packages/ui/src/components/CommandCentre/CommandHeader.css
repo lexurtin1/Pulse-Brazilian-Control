@@ -69,7 +69,8 @@
 }
 
 .command-header__clock {
-  font-family: ui-monospace, "SFMono-Regular", monospace;
+  font-family: var(--font-body);
+  font-variant-numeric: tabular-nums;
   font-size: 11px;
   color: var(--color-text-faint);
   padding: 4px 10px;

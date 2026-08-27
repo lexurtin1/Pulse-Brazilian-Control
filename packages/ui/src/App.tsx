@@ -3,7 +3,6 @@ import { motion } from "framer-motion";
 import type {
   AccountMapPinDto,
   AccountSummaryDto,
-  ActiveAccountsSummaryDto,
   DashboardFreshnessDto,
   ExpansionUpdateDto,
   OpenDealsResultDto,
@@ -17,21 +16,19 @@ import { AccountDossier } from "./components/AccountDossier/AccountDossier";
 import { EntryAnimation } from "./components/EntryAnimation/EntryAnimation";
 import { CommandHeader } from "./components/CommandCentre/CommandHeader";
 import { KpiCard } from "./components/CommandCentre/KpiCard";
-import { FeedControlsCard } from "./components/CommandCentre/FeedControlsCard";
 import { LatestUpdateCard } from "./components/CommandCentre/LatestUpdateCard";
 import { OpenDealsCard } from "./components/CommandCentre/OpenDealsCard";
 import { LiveFeedCard } from "./components/CommandCentre/LiveFeedCard";
 import {
   fetchAccountMapPins,
   fetchAccounts,
-  fetchActiveAccountsSummary,
   fetchDashboardFreshness,
   fetchLatestUpdate,
   fetchOpenDeals,
   fetchPipelineSummary,
   fetchRecentSignals,
 } from "./api/client";
-import { formatCount, formatCountDelta, formatCurrency, formatCurrencyDelta, formatShortDate } from "./utils/formatNumbers";
+import { formatCurrency, formatCurrencyDelta, formatShortDate } from "./utils/formatNumbers";
 import { primaryClientType } from "./utils/clientType";
 import "./components/CommandCentre/CommandCentre.css";
 import "./App.css";
@@ -57,7 +54,6 @@ export function App() {
   const [mapPins, setMapPins] = useState<AccountMapPinDto[]>([]);
   const [signals, setSignals] = useState<SignalDto[]>([]);
   const [pipelineSummary, setPipelineSummary] = useState<PipelineSummaryDto | null>(null);
-  const [activeAccountsSummary, setActiveAccountsSummary] = useState<ActiveAccountsSummaryDto | null>(null);
   const [openDeals, setOpenDeals] = useState<OpenDealsResultDto | null>(null);
   const [dashboardFreshness, setDashboardFreshness] = useState<DashboardFreshnessDto | null>(null);
   const [latestUpdate, setLatestUpdate] = useState<ExpansionUpdateDto | null>(null);
@@ -75,7 +71,6 @@ export function App() {
       fetchRecentSignals(),
       fetchPipelineSummary(),
       fetchOpenDeals(),
-      fetchActiveAccountsSummary(),
       fetchDashboardFreshness(),
       fetchLatestUpdate(),
     ])
@@ -86,7 +81,6 @@ export function App() {
           signalsResult,
           pipelineSummaryResult,
           openDealsResult,
-          activeAccountsSummaryResult,
           dashboardFreshnessResult,
           latestUpdateResult,
         ]) => {
@@ -96,7 +90,6 @@ export function App() {
           setSignals(signalsResult);
           setPipelineSummary(pipelineSummaryResult);
           setOpenDeals(openDealsResult);
-          setActiveAccountsSummary(activeAccountsSummaryResult);
           setDashboardFreshness(dashboardFreshnessResult);
           setLatestUpdate(latestUpdateResult);
           setStatus("ready");
@@ -156,15 +149,6 @@ export function App() {
       .catch((error) => console.error("Failed to refresh accounts", error));
   }, []);
 
-  // After a Location CSV import, re-fetch the Active Accounts summary so
-  // its count/delta reflect the new AccountCountSnapshot without a full
-  // page reload.
-  const refreshActiveAccountsSummary = useCallback(() => {
-    fetchActiveAccountsSummary()
-      .then(setActiveAccountsSummary)
-      .catch((error) => console.error("Failed to refresh active accounts summary", error));
-  }, []);
-
   // After a Pipeline CSV import or a sweep run, re-fetch the freshness ring
   // so it reflects the new upload/sweep timestamp immediately, not just on
   // the next full page load.
@@ -187,20 +171,11 @@ export function App() {
   const refreshAfterUpload = useCallback(() => {
     refreshSignals();
     refreshPipeline();
-    refreshActiveAccountsSummary();
     refreshFreshness();
     refreshLatestUpdate();
     refreshMapPins();
     refreshAccounts();
-  }, [
-    refreshSignals,
-    refreshPipeline,
-    refreshActiveAccountsSummary,
-    refreshFreshness,
-    refreshLatestUpdate,
-    refreshMapPins,
-    refreshAccounts,
-  ]);
+  }, [refreshSignals, refreshPipeline, refreshFreshness, refreshLatestUpdate, refreshMapPins, refreshAccounts]);
 
   const accountsById = useMemo(() => new Map(accounts.map((account) => [account.id, account])), [accounts]);
 
@@ -256,69 +231,62 @@ export function App() {
         initial={showIntro ? "hidden" : false}
         animate={showIntro ? "hidden" : "visible"}
       >
-        <CommandHeader freshness={dashboardFreshness} />
+        <CommandHeader
+          freshness={dashboardFreshness}
+          onImported={refreshAfterUpload}
+          onSweepComplete={handleSweepComplete}
+          onFeedCleared={refreshSignals}
+        />
         <div className="command-centre__body">
-          <motion.div className="kpi-strip" variants={shellItemVariants}>
-            <KpiCard
-              accent="blue"
-              label="ACTIVE ACCOUNTS · BR"
-              value={activeAccountsSummary ? formatCount(activeAccountsSummary.count) : undefined}
-              footnote={
-                activeAccountsSummary
-                  ? activeAccountsSummary.delta
-                    ? `${formatCountDelta(activeAccountsSummary.delta.count)} vs. upload on ${formatShortDate(activeAccountsSummary.delta.previousAsOf)}`
-                    : `as of ${formatShortDate(activeAccountsSummary.asOf)}`
-                  : "Upload a Location CSV to populate this card"
-              }
-            />
-            {/* Unweighted and weighted are one figure seen two ways, so they
-                share a card — which is what frees the fourth strip slot for
-                the Brazil update. Both numbers are still shown in full. */}
-            <KpiCard
-              accent="teal"
-              label="PIPELINE VALUE"
-              value={pipelineSummary ? formatCurrency(pipelineSummary.unweightedValue) : undefined}
-              secondary={
-                pipelineSummary
-                  ? { label: "WEIGHTED", value: formatCurrency(pipelineSummary.weightedValue) }
-                  : undefined
-              }
-              footnote={
-                pipelineSummary
-                  ? pipelineSummary.unweightedDelta
-                    ? `${formatCurrencyDelta(pipelineSummary.unweightedDelta.amount)} vs. upload on ${formatShortDate(pipelineSummary.unweightedDelta.previousAsOf)}`
-                    : `${pipelineSummary.openDealCount} open deals as of ${formatShortDate(pipelineSummary.asOf)}`
-                  : "Upload a Salesforce pipeline export to populate this card"
-              }
-            />
-            <LatestUpdateCard latestUpdate={latestUpdate} onUpdated={setLatestUpdate} />
-            <FeedControlsCard
-              onImported={refreshAfterUpload}
-              onSweepComplete={handleSweepComplete}
-              onFeedCleared={refreshSignals}
-            />
-          </motion.div>
-
           <div className="main-grid">
-            <motion.div className="map-panel" variants={shellItemVariants}>
-              <div className="map-panel__header">
-                <span className="map-panel__title">OPERATIONAL MAP · BRAZIL</span>
-              </div>
-              <div className="map-panel__canvas">
-                <div ref={mapWrapRef} className="app-shell__map-live">
-                  <CesiumGlobe
-                    pins={visibleMapPins}
-                    selectedAccountId={selectedAccountId}
-                    onSelectAccount={handleSelectAccount}
+            {/* The KPI tiles sit above the map rather than spanning the page,
+                so the rail beside them runs the full height of the body —
+                the live feed is the thing you read for minutes at a time and
+                it was the thing being squeezed. */}
+            <div className="map-column">
+              <motion.div className="kpi-strip" variants={shellItemVariants}>
+                {/* Unweighted and weighted are one figure seen two ways, so
+                    they share a card. Both numbers are still shown in full. */}
+                <KpiCard
+                  accent="teal"
+                  label="PIPELINE VALUE"
+                  value={pipelineSummary ? formatCurrency(pipelineSummary.unweightedValue) : undefined}
+                  secondary={
+                    pipelineSummary
+                      ? { label: "WEIGHTED", value: formatCurrency(pipelineSummary.weightedValue) }
+                      : undefined
+                  }
+                  footnote={
+                    pipelineSummary
+                      ? pipelineSummary.unweightedDelta
+                        ? `${formatCurrencyDelta(pipelineSummary.unweightedDelta.amount)} vs. upload on ${formatShortDate(pipelineSummary.unweightedDelta.previousAsOf)}`
+                        : `${pipelineSummary.openDealCount} open deals as of ${formatShortDate(pipelineSummary.asOf)}`
+                      : "Upload a Salesforce pipeline export to populate this card"
+                  }
+                />
+                <LatestUpdateCard latestUpdate={latestUpdate} onUpdated={setLatestUpdate} />
+              </motion.div>
+
+              <motion.div className="map-panel" variants={shellItemVariants}>
+                <div className="map-panel__header">
+                  <span className="map-panel__title">OPERATIONAL MAP · BRAZIL</span>
+                </div>
+                <div className="map-panel__canvas">
+                  <div ref={mapWrapRef} className="app-shell__map-live">
+                    <CesiumGlobe
+                      pins={visibleMapPins}
+                      selectedAccountId={selectedAccountId}
+                      onSelectAccount={handleSelectAccount}
+                    />
+                  </div>
+                  <MapLegend
+                    pins={mapPins}
+                    hiddenClientTypes={hiddenClientTypes}
+                    onToggleClientType={toggleClientType}
                   />
                 </div>
-                <MapLegend
-                  pins={mapPins}
-                  hiddenClientTypes={hiddenClientTypes}
-                  onToggleClientType={toggleClientType}
-                />
-              </div>
-            </motion.div>
+              </motion.div>
+            </div>
 
             <motion.div className="right-rail" variants={shellItemVariants}>
               <OpenDealsCard openDeals={openDeals} accountsById={accountsById} />
