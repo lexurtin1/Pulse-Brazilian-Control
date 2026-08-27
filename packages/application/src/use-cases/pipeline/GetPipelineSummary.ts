@@ -1,5 +1,5 @@
-import { DocumentType, type Deal } from "@pulse-brazil/domain";
-import type { PipelineSummaryDto, PipelineValueDeltaDto } from "../../dto/pipeline/PipelineSummaryDto.js";
+import { DocumentType, OPEN_DEAL_STAGE_ORDER, type Deal } from "@pulse-brazil/domain";
+import type { PipelineStageSliceDto, PipelineSummaryDto, PipelineValueDeltaDto } from "../../dto/pipeline/PipelineSummaryDto.js";
 import type { IDealRepository } from "../../ports/IDealRepository.js";
 import type { IDocumentRepository } from "../../ports/IDocumentRepository.js";
 
@@ -10,6 +10,25 @@ function sumOpenDeals(deals: Deal[]): { unweighted: number; weighted: number; co
     weighted: openDeals.reduce((sum, deal) => sum + deal.expectedRevenue, 0),
     count: openDeals.length,
   };
+}
+
+/**
+ * Where the open pipeline is sitting in the funnel. Driven off
+ * OPEN_DEAL_STAGE_ORDER rather than off whatever stages happen to appear in
+ * this upload, so the four slices are always present and always in the same
+ * order — a stage that emptied since the last export reads as an empty
+ * stage rather than silently disappearing from the card.
+ */
+function stageBreakdown(deals: Deal[]): PipelineStageSliceDto[] {
+  const openDeals = deals.filter((deal) => deal.isOpen);
+  return OPEN_DEAL_STAGE_ORDER.map((stage) => {
+    const inStage = openDeals.filter((deal) => deal.stage === stage);
+    return {
+      stage,
+      value: inStage.reduce((sum, deal) => sum + deal.amount, 0),
+      dealCount: inStage.length,
+    };
+  });
 }
 
 /**
@@ -52,6 +71,7 @@ export class GetPipelineSummary {
       unweightedDelta,
       weightedValue: totals.weighted,
       weightedDelta,
+      stages: stageBreakdown(latestDeals),
     };
   }
 }

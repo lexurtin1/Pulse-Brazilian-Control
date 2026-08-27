@@ -79,13 +79,17 @@
 
 /* No dashed placeholder box any more — a figure this size is its own
    emphasis, and the dashes read as "nothing here yet" even when the number
-   was real. tabular-nums keeps digits aligned now the face is proportional. */
+   was real.
+
+   Proportional figures, deliberately NOT tabular-nums: equal-width digits
+   make a number this size read loose and gappy, and nothing is stacked
+   underneath it to align to. tabular-nums belongs on the columns that do
+   align — the stage legend, the deal amounts, the clocks. */
 .kpi-card__value {
   display: inline-block;
   align-self: flex-start;
   color: var(--color-text);
   font-family: var(--font-body);
-  font-variant-numeric: tabular-nums;
   font-size: 40px;
   font-weight: 700;
   line-height: 1.15;

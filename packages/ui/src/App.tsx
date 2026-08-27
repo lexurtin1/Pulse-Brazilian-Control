@@ -17,6 +17,7 @@ import { EntryAnimation } from "./components/EntryAnimation/EntryAnimation";
 import { CommandHeader } from "./components/CommandCentre/CommandHeader";
 import { KpiCard } from "./components/CommandCentre/KpiCard";
 import { LatestUpdateCard } from "./components/CommandCentre/LatestUpdateCard";
+import { PipelineStageBar } from "./components/CommandCentre/PipelineStageBar";
 import { OpenDealsCard } from "./components/CommandCentre/OpenDealsCard";
 import { LiveFeedCard } from "./components/CommandCentre/LiveFeedCard";
 import {
@@ -263,7 +264,11 @@ export function App() {
                         : `${pipelineSummary.openDealCount} open deals as of ${formatShortDate(pipelineSummary.asOf)}`
                       : "Upload a Salesforce pipeline export to populate this card"
                   }
-                />
+                >
+                  {pipelineSummary && (
+                    <PipelineStageBar stages={pipelineSummary.stages} total={pipelineSummary.unweightedValue} />
+                  )}
+                </KpiCard>
                 <LatestUpdateCard latestUpdate={latestUpdate} onUpdated={setLatestUpdate} />
               </motion.div>
 

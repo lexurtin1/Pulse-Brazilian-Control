@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import "./CommandCentre.css";
 
 interface KpiCardProps {
@@ -14,9 +15,11 @@ interface KpiCardProps {
   variant?: "default" | "risk";
   /** Calastone brand accent (top border + label color) — scoped to specific tiles, not a general theming knob. */
   accent?: "blue" | "teal";
+  /** An optional visual between the figures and the footnote — how the headline number breaks down, not a second number. Sits after the value so the figure is still what you read first. */
+  children?: ReactNode;
 }
 
-export function KpiCard({ label, value, secondary, footnote, variant = "default", accent }: KpiCardProps) {
+export function KpiCard({ label, value, secondary, footnote, variant = "default", accent, children }: KpiCardProps) {
   return (
     <div className="kpi-card" data-variant={variant} data-accent={accent}>
       <span className="kpi-card__label">{label}</span>
@@ -29,6 +32,7 @@ export function KpiCard({ label, value, secondary, footnote, variant = "default"
           <span className="kpi-card__secondary-value">{secondary.value}</span>
         </span>
       )}
+      {children}
       <span className="kpi-card__footnote">{footnote}</span>
     </div>
   );

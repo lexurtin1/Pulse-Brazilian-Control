@@ -74,6 +74,22 @@
   --color-client-fundoffunddesk: #c56100;
   --color-client-fundaccountant: #be3655;
 
+  /* Pipeline stage ramp — the Pipeline Value card's stacked bar. Deal stage
+     is ORDINAL, not nominal: swapping Prospect and Signed changes what the
+     chart says, so this is a sequential one-hue ramp (dataviz skill) and not
+     four identity hues. Pale = earliest in the funnel, deep = nearly closed,
+     so the reader sees the progression in the colour itself.
+     Hue is --color-calastone-teal, which is already this card's accent.
+     Checked with the skill's validateOrdinal against #ffffff: lightness
+     monotone, even adjacent steps, light end 2.03:1 (clears the 2:1 floor),
+     single hue. The two palest steps sit under 3:1, which is allowed for an
+     ordinal ramp only because every slice is also named and valued in the
+     legend beneath the bar — colour is never the only encoding here. */
+  --color-stage-1: #8dbfc2;
+  --color-stage-2: #4c9ba0;
+  --color-stage-3: #1c767c;
+  --color-stage-4: #135154;
+
   /* Calastone brand accents — scoped deliberately (see INTEGRATION_PLAN /
      grilling session): KPI tiles (Active Accounts = blue, both Pipeline
      tiles = teal) and the Upload button (green). NOT a replacement for
@@ -256,6 +272,17 @@
     --color-client-softwarevendor: #cc6346;
     --color-client-fundoffunddesk: #c36d1a;
     --color-client-fundaccountant: #cb5e70;
+
+    /* Pipeline stage ramp — re-stepped for the dark surface, not flipped.
+       The anchor moves: on #16222b the pale end of the light ramp would be
+       the LOUDEST thing on the card, so the ramp runs deep→bright instead,
+       keeping "earliest in the funnel recedes, nearly-closed advances".
+       validateOrdinal against #16222b: monotone, even steps, low end
+       4.62:1, single hue. */
+    --color-stage-1: #41959a;
+    --color-stage-2: #60a6ab;
+    --color-stage-3: #7fb8bb;
+    --color-stage-4: #9fc9cc;
 
     /* Calastone brand accents — brightened for contrast against a dark surface */
     --color-calastone-blue: #4793ce;
