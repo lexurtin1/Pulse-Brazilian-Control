@@ -115,7 +115,17 @@ export class PostgresSignalRepository implements ISignalRepository {
     return rows.map(rowToSignal);
   }
 
-  async findRecent(limit: number): Promise<Signal[]> {
+  async findRecent(limit: number, sources?: readonly ConnectorSource[]): Promise<Signal[]> {
+    // An empty `sources` array means "none of them", not "all of them" —
+    // returning the whole feed there would be the opposite of what the
+    // caller asked for. Only an absent argument means unfiltered.
+    if (sources) {
+      const { rows } = await this.pool.query<SignalRow>(
+        `${SIGNAL_SELECT} WHERE s.source = ANY($2) ORDER BY s.date_observed DESC LIMIT $1`,
+        [limit, [...sources]],
+      );
+      return rows.map(rowToSignal);
+    }
     const { rows } = await this.pool.query<SignalRow>(
       `${SIGNAL_SELECT} ORDER BY s.date_observed DESC LIMIT $1`,
       [limit],

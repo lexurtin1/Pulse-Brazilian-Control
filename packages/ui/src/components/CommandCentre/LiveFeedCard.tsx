@@ -12,7 +12,7 @@ interface LiveFeedCardProps {
   onSelectAccount: (accountId: string) => void;
 }
 
-/** The market-sweep topics a user can filter the feed down to — matches the SignalTypes RunMarketResearchSweep produces, one chip each, plus "All". */
+/** The market-sweep topics a user can filter the feed down to — matches the SignalTypes RunMarketResearchSweep produces, one chip each, plus "All". The feed carries external news only (see ListRecentSignals), so these cover it. */
 const FILTERABLE_TYPES: { type: string; label: string }[] = [
   { type: "CompetitiveIntelligence", label: "Competitor" },
   { type: "RegulatoryChange", label: "Regulatory" },
@@ -154,7 +154,7 @@ export function LiveFeedCard({ signals, accountsById, selectedAccountId, onSelec
       {filteredSignals.length === 0 ? (
         <p className="rail-card__empty">
           {signals.length === 0
-            ? "No feed activity yet — upload a document or run a Perplexity sweep to populate this card."
+            ? "No market news yet — run a Perplexity sweep to populate this card."
             : "No signals match this filter yet."}
         </p>
       ) : (
