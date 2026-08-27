@@ -114,6 +114,11 @@
 
 .map-panel {
   position: relative;
+  /* Takes every row the KPI tiles above it leave. It used to be a grid item
+     of .main-grid and got its height from align-items: stretch; inside
+     .map-column it is a flex item, and without this it sizes to its own
+     header while the canvas below collapses to nothing. */
+  flex: 1;
   background: var(--color-surface-offset);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
