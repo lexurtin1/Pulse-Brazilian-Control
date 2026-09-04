@@ -92,4 +92,40 @@ describe("SaveExpansionUpdateEdits", () => {
   it("refuses an empty command", async () => {
     await expect(save(existingUpdate(), {})).rejects.toBeInstanceOf(ValidationError);
   });
+
+  // Without this, one hand edit froze that field against every future upload
+  // — which is exactly how the whole card ended up static.
+  it("releases a pin so document ingest can refresh the field again", async () => {
+    const pinned = existingUpdate().applyManualEdit(
+      { headline: "Set by hand" },
+      [ExpansionUpdateField.Headline],
+      new Date("2026-08-02T00:00:00Z"),
+    );
+
+    const { saved } = await save(pinned, { unpinFields: ["headline"] });
+
+    expect(saved.manuallyEditedFields).toEqual([]);
+    // Releasing frees the field; it does not revert what was written.
+    expect(saved.headline).toBe("Set by hand");
+  });
+
+  it("keeps an edit's own pin when the same request releases a different field", async () => {
+    const pinned = existingUpdate().applyManualEdit(
+      { nextActions: ["Set by hand"] },
+      [ExpansionUpdateField.NextActions],
+      new Date("2026-08-02T00:00:00Z"),
+    );
+
+    const { saved } = await save(pinned, { headline: "Pilot agreed", unpinFields: ["nextActions"] });
+
+    expect(saved.manuallyEditedFields).toEqual([ExpansionUpdateField.Headline]);
+  });
+
+  it("rejects a field name that is not editable", async () => {
+    await expect(save(existingUpdate(), { unpinFields: ["origin"] })).rejects.toBeInstanceOf(ValidationError);
+  });
+
+  it("refuses to release anything before the first update exists", async () => {
+    await expect(save(null, { unpinFields: ["headline"] })).rejects.toBeInstanceOf(ValidationError);
+  });
 });

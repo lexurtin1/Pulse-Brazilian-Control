@@ -1,5 +1,11 @@
 import type { ExpansionUpdateDraft } from "@pulse-brazil/domain";
-import { asExpansionUpdateId, ExpansionUpdate, ExpansionUpdateField, ExpansionUpdateOrigin } from "@pulse-brazil/domain";
+import {
+  asExpansionUpdateId,
+  EXPANSION_UPDATE_FIELDS,
+  ExpansionUpdate,
+  ExpansionUpdateField,
+  ExpansionUpdateOrigin,
+} from "@pulse-brazil/domain";
 import type { ExpansionUpdateDto, UpdateExpansionUpdateCommand } from "../../dto/update/ExpansionUpdateDto.js";
 import { ValidationError } from "../../errors/ApplicationError.js";
 import type { IExpansionUpdateRepository } from "../../ports/IExpansionUpdateRepository.js";
@@ -54,14 +60,35 @@ export class SaveExpansionUpdateEdits {
       patch.nextActions = command.nextActions;
     }
 
-    if (editedFields.length === 0) {
+    const releasedFields = (command.unpinFields ?? []).map((field) => {
+      if (!(EXPANSION_UPDATE_FIELDS as readonly string[]).includes(field)) {
+        throw new ValidationError(`unpinFields must name only: ${EXPANSION_UPDATE_FIELDS.join(", ")}`);
+      }
+      return field as ExpansionUpdateField;
+    });
+
+    if (editedFields.length === 0 && releasedFields.length === 0) {
       throw new ValidationError("Request body must name at least one field to update");
     }
 
     const current = await this.updates.findCurrent();
-    const edited = current
-      ? current.applyManualEdit(patch as ExpansionUpdateDraft, editedFields, new Date())
+    if (!current && releasedFields.length > 0 && editedFields.length === 0) {
+      throw new ValidationError("There is no update to release fields on yet");
+    }
+
+    const now = new Date();
+    let edited = current
+      ? editedFields.length > 0
+        ? current.applyManualEdit(patch as ExpansionUpdateDraft, editedFields, now)
+        : current
       : this.createFirst(patch, editedFields);
+
+    // Release last: a request that edits one field and frees another must
+    // not have the edit's own pin stripped by ordering luck, and a field
+    // named in both is a contradiction the release wins.
+    if (releasedFields.length > 0) {
+      edited = edited.releasePins(releasedFields, now);
+    }
 
     await this.updates.save(edited);
     return toExpansionUpdateDto(edited);

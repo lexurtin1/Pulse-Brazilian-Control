@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { Check, Pencil, X } from "lucide-react";
-import type { ExpansionUpdateDto, UpdateExpansionUpdateCommand } from "@pulse-brazil/application";
+import type { ExpansionUpdateDto } from "@pulse-brazil/application";
 import { saveLatestUpdate } from "../../api/client";
 import { useDialogA11y } from "../../hooks/useDialogA11y";
 import { formatRelativeDay, formatShortDate } from "../../utils/formatNumbers";
+import { changedFieldsOnly } from "../../utils/latestUpdatePatch";
 import "./CommandCentre.css";
 import "./FeedActions.css";
 import "./LatestUpdateCard.css";
@@ -50,13 +51,35 @@ function pinned(update: ExpansionUpdateDto, field: string): boolean {
   return update.manuallyEditedFields.includes(field);
 }
 
-/** A short "you set this, Claude won't change it" marker — the only way to tell a pinned field from a generated one. */
-function PinnedMark({ update, field }: { update: ExpansionUpdateDto; field: string }) {
+/**
+ * A pinned field is one a person set by hand, and document ingest leaves it
+ * alone forever after. That has to be visible *and* reversible from the same
+ * spot — an invisible permanent pin is how this card went stale while every
+ * upload reported success.
+ */
+function PinnedMark({
+  update,
+  field,
+  onRelease,
+  disabled,
+}: {
+  update: ExpansionUpdateDto;
+  field: string;
+  onRelease: (field: string) => void;
+  disabled: boolean;
+}) {
   if (!pinned(update, field)) return null;
   return (
-    <span className="latest-update__pinned" title="You set this by hand — uploading a document won't overwrite it">
+    <button
+      type="button"
+      className="latest-update__pinned"
+      disabled={disabled}
+      onClick={() => onRelease(field)}
+      title="You set this by hand, so uploads leave it alone. Click to let the next document update it again."
+    >
       set by hand
-    </span>
+      <span className="latest-update__pinned-release">Let uploads update this</span>
+    </button>
   );
 }
 
@@ -164,7 +187,7 @@ export function LatestUpdateCard({ latestUpdate, onUpdated }: LatestUpdateCardPr
     // and either someone to meet or something that was said. Clearing either
     // is how you record "there is none" — a real answer the card keeps, and
     // one a later document ingest will not overwrite.
-    const patch: UpdateExpansionUpdateCommand = {
+    const submitted = {
       headline,
       lastContact:
         contactDate && contactDiscussed
@@ -182,6 +205,15 @@ export function LatestUpdateCard({ latestUpdate, onUpdated }: LatestUpdateCardPr
       nextActions: toLines(String(form.get("nextActions") ?? "")),
     };
 
+    // Only what moved. Naming an untouched field would pin it, and a pinned
+    // field never refreshes from a document again.
+    const patch = changedFieldsOnly(submitted, latestUpdate);
+    if (Object.keys(patch).length === 0) {
+      setIsEditing(false);
+      setFocusField(null);
+      return;
+    }
+
     setIsSaving(true);
     setSaveError(null);
     try {
@@ -191,6 +223,19 @@ export function LatestUpdateCard({ latestUpdate, onUpdated }: LatestUpdateCardPr
       setJustSaved(true);
     } catch (error) {
       setSaveError(error instanceof Error ? error.message : "Couldn't save your changes.");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  /** Hands one field back to document ingest, so the next upload can refresh it. */
+  async function releasePin(field: string) {
+    setIsSaving(true);
+    setSaveError(null);
+    try {
+      onUpdated(await saveLatestUpdate({ unpinFields: [field] }));
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : "Couldn't release that field.");
     } finally {
       setIsSaving(false);
     }
@@ -281,6 +326,9 @@ export function LatestUpdateCard({ latestUpdate, onUpdated }: LatestUpdateCardPr
                 <h2 id={TITLE_ID} className="latest-update-panel__title">
                   {latestUpdate?.headline ?? "Nothing recorded yet"}
                 </h2>
+                {latestUpdate && (
+                  <PinnedMark update={latestUpdate} field="headline" onRelease={releasePin} disabled={isSaving} />
+                )}
               </div>
               <div className="latest-update-panel__actions">
                 {justSaved && (
@@ -321,7 +369,7 @@ export function LatestUpdateCard({ latestUpdate, onUpdated }: LatestUpdateCardPr
                   <section className="latest-update__section">
                     <h3 className="latest-update__section-title">
                       Last contact
-                      <PinnedMark update={latestUpdate} field="lastContact" />
+                      <PinnedMark update={latestUpdate} field="lastContact" onRelease={releasePin} disabled={isSaving} />
                       <SectionEdit field="lastContact" />
                     </h3>
                     {latestUpdate.lastContact ? (
@@ -343,7 +391,7 @@ export function LatestUpdateCard({ latestUpdate, onUpdated }: LatestUpdateCardPr
                   <section className="latest-update__section">
                     <h3 className="latest-update__section-title">
                       Next meeting
-                      <PinnedMark update={latestUpdate} field="nextMeeting" />
+                      <PinnedMark update={latestUpdate} field="nextMeeting" onRelease={releasePin} disabled={isSaving} />
                       <SectionEdit field="nextMeeting" />
                     </h3>
                     {latestUpdate.nextMeeting ? (
@@ -365,7 +413,7 @@ export function LatestUpdateCard({ latestUpdate, onUpdated }: LatestUpdateCardPr
                   <section className="latest-update__section">
                     <h3 className="latest-update__section-title">
                       Waiting on internally
-                      <PinnedMark update={latestUpdate} field="awaitingInternal" />
+                      <PinnedMark update={latestUpdate} field="awaitingInternal" onRelease={releasePin} disabled={isSaving} />
                       <SectionEdit field="awaitingInternal" />
                     </h3>
                     {latestUpdate.awaitingInternal.length > 0 ? (
@@ -382,7 +430,7 @@ export function LatestUpdateCard({ latestUpdate, onUpdated }: LatestUpdateCardPr
                   <section className="latest-update__section">
                     <h3 className="latest-update__section-title">
                       Next actions
-                      <PinnedMark update={latestUpdate} field="nextActions" />
+                      <PinnedMark update={latestUpdate} field="nextActions" onRelease={releasePin} disabled={isSaving} />
                       <SectionEdit field="nextActions" />
                     </h3>
                     {latestUpdate.nextActions.length > 0 ? (

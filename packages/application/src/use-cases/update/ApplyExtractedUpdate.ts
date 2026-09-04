@@ -1,8 +1,19 @@
-import type { AccountId, DocumentId, ExpansionUpdateDraft } from "@pulse-brazil/domain";
+import type { AccountId, DocumentId, ExpansionUpdateDraft, ExpansionUpdateField } from "@pulse-brazil/domain";
 import { asExpansionUpdateId, ExpansionUpdate, ExpansionUpdateOrigin } from "@pulse-brazil/domain";
 import type { ClaudeExpansionUpdateDraft } from "../../ports/IClaudeService.js";
 import type { IExpansionUpdateRepository } from "../../ports/IExpansionUpdateRepository.js";
 import type { IIdGenerator } from "../../ports/IIdGenerator.js";
+
+/**
+ * What the merge actually did. `blockedFields` is the part worth surfacing:
+ * Claude proposed a value, a pin refused it, and nobody would otherwise know
+ * — the upload would report "the Brazil update was refreshed" over a card
+ * that had not moved.
+ */
+export interface ApplyExtractedUpdateResult {
+  /** Fields the draft proposed and a hand-set pin kept out. */
+  blockedFields: ExpansionUpdateField[];
+}
 
 export interface ApplyExtractedUpdateCommand {
   draft: ClaudeExpansionUpdateDraft;
@@ -33,14 +44,15 @@ export class ApplyExtractedUpdate {
     private readonly idGenerator: IIdGenerator,
   ) {}
 
-  async execute(command: ApplyExtractedUpdateCommand): Promise<void> {
+  async execute(command: ApplyExtractedUpdateCommand): Promise<ApplyExtractedUpdateResult> {
     const draft = this.toDomainDraft(command.draft, command.knownAccountIds);
     const now = new Date();
 
     const current = await this.updates.findCurrent();
     if (current) {
+      const blockedFields = current.blockedFields(draft);
       await this.updates.save(current.applyDraft(draft, command.sourceDocumentId, now));
-      return;
+      return { blockedFields };
     }
 
     // Nothing to merge into yet. A first update still needs a headline, and
@@ -60,6 +72,7 @@ export class ApplyExtractedUpdate {
         manuallyEditedFields: [],
       }),
     );
+    return { blockedFields: [] };
   }
 
   private toDomainDraft(draft: ClaudeExpansionUpdateDraft, knownAccountIds: ReadonlySet<string>): ExpansionUpdateDraft {

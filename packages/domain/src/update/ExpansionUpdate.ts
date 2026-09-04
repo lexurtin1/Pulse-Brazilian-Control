@@ -144,6 +144,44 @@ export class ExpansionUpdate {
   }
 
   /**
+   * Which of a draft's proposals this update's pins would throw away.
+   *
+   * Pinning is silent by design — `applyDraft` simply keeps the current
+   * value. That silence is what let this card sit frozen while every upload
+   * reported success, so the ingest pipeline asks this first and says out
+   * loud what it was not allowed to write.
+   */
+  blockedFields(draft: ExpansionUpdateDraft): ExpansionUpdateField[] {
+    const proposals: readonly (readonly [ExpansionUpdateField, unknown])[] = [
+      [ExpansionUpdateField.Headline, draft.headline?.trim() || undefined],
+      [ExpansionUpdateField.LastContact, draft.lastContact],
+      [ExpansionUpdateField.NextMeeting, draft.nextMeeting],
+      [ExpansionUpdateField.AwaitingInternal, draft.awaitingInternal],
+      [ExpansionUpdateField.NextActions, draft.nextActions],
+    ];
+    return proposals
+      .filter(([field, proposed]) => proposed !== undefined && this.isPinned(field))
+      .map(([field]) => field);
+  }
+
+  /**
+   * Hands a field back to the ingest pipeline.
+   *
+   * A pin protects a correction, but a correction goes stale like anything
+   * else: the meeting it described happens, the blocker it recorded clears.
+   * Without a way back, one edit means that field can never be refreshed
+   * again — the card stops being an update and becomes an archive.
+   */
+  releasePins(fields: readonly ExpansionUpdateField[], asOf: Date): ExpansionUpdate {
+    const released = new Set<string>(fields);
+    return ExpansionUpdate.of({
+      ...this.props,
+      asOf,
+      manuallyEditedFields: this.props.manuallyEditedFields.filter((field) => !released.has(field)),
+    });
+  }
+
+  /**
    * Applies a person's edit. Every field the patch names becomes pinned.
    *
    * `undefined` means two different things here, so the fields can't share

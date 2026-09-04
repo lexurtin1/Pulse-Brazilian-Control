@@ -350,16 +350,46 @@
 }
 
 /* Deliberately quiet: it marks provenance, it isn't a warning. */
+/* A pin is reversible, so the badge is a button. It reads as a status until
+   you approach it, then offers the way out — the label swap keeps the resting
+   card quiet without hiding that anything can be done about it. */
 .latest-update__pinned {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
   font-size: 9px;
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: none;
   color: var(--color-brand-teal);
+  background: none;
   border: 1px solid currentColor;
   border-radius: var(--radius-full);
   padding: 1px var(--space-2);
-  cursor: help;
+  cursor: pointer;
+}
+
+.latest-update__pinned:disabled {
+  cursor: progress;
+  opacity: 0.6;
+}
+
+.latest-update__pinned-release {
+  display: none;
+  padding-left: var(--space-1);
+  border-left: 1px solid currentColor;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+.latest-update__pinned:hover:not(:disabled),
+.latest-update__pinned:focus-visible {
+  color: var(--color-text);
+}
+
+.latest-update__pinned:hover:not(:disabled) .latest-update__pinned-release,
+.latest-update__pinned:focus-visible .latest-update__pinned-release {
+  display: inline;
 }
 
 .latest-update__meta {

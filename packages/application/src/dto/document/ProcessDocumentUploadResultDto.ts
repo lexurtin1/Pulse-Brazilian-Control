@@ -8,4 +8,10 @@ export interface ProcessDocumentUploadResultDto {
   signalsCreated: SignalDto[];
   unmatchedAccountMentions: string[];
   latestUpdateRefreshed: boolean;
+  /**
+   * Fields the Brazil update refused because they are pinned by a hand edit.
+   * Non-empty means the card did not fully move — the uploader is told, and
+   * can release the pin from the card itself.
+   */
+  latestUpdateBlockedFields: string[];
 }

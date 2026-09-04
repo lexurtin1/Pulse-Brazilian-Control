@@ -37,4 +37,10 @@ export interface UpdateExpansionUpdateCommand {
   nextMeeting?: NextMeetingDto | null;
   awaitingInternal?: string[];
   nextActions?: string[];
+  /**
+   * Field names to hand back to document ingest, undoing an earlier pin. A
+   * request may do nothing but this — releasing a stale correction is a real
+   * edit, not a no-op.
+   */
+  unpinFields?: string[];
 }

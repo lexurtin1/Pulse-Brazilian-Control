@@ -46,14 +46,18 @@ function draft(overrides: Partial<ClaudeExpansionUpdateDraft> = {}): ClaudeExpan
   };
 }
 
-async function apply(current: ExpansionUpdate | null, extracted: ClaudeExpansionUpdateDraft) {
+async function applyReturning(current: ExpansionUpdate | null, extracted: ClaudeExpansionUpdateDraft) {
   const { repo, saved } = repository(current);
-  await new ApplyExtractedUpdate(repo, idGenerator).execute({
+  const result = await new ApplyExtractedUpdate(repo, idGenerator).execute({
     draft: extracted,
     sourceDocumentId: NEW_DOC,
     knownAccountIds: KNOWN_ACCOUNTS,
   });
-  return saved[0]!;
+  return { saved: saved[0]!, result };
+}
+
+async function apply(current: ExpansionUpdate | null, extracted: ClaudeExpansionUpdateDraft) {
+  return (await applyReturning(current, extracted)).saved;
 }
 
 describe("ApplyExtractedUpdate", () => {
@@ -162,5 +166,28 @@ describe("ApplyExtractedUpdate", () => {
     const saved = await apply(existingUpdate(), draft());
 
     expect(saved.sourceDocumentIds).toEqual([EXISTING_DOC, NEW_DOC]);
+  });
+
+  // The card sat unchanged for a week while every upload reported success,
+  // because a pinned field is skipped silently. It is no longer silent.
+  it("reports the fields a pin refused", async () => {
+    const { result } = await applyReturning(
+      existingUpdate({ manuallyEditedFields: [ExpansionUpdateField.Headline] }),
+      draft({ headline: "Pilot agreed", nextActions: ["Book kickoff"] }),
+    );
+
+    expect(result.blockedFields).toEqual([ExpansionUpdateField.Headline]);
+  });
+
+  it("reports nothing blocked when every proposal lands", async () => {
+    const { result } = await applyReturning(existingUpdate(), draft({ nextActions: ["Book kickoff"] }));
+
+    expect(result.blockedFields).toEqual([]);
+  });
+
+  it("reports nothing blocked on the very first update", async () => {
+    const { result } = await applyReturning(null, draft());
+
+    expect(result.blockedFields).toEqual([]);
   });
 });

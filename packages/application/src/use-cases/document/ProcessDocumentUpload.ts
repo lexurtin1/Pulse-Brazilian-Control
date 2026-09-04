@@ -94,6 +94,7 @@ export class ProcessDocumentUpload {
     let unmatchedAccountMentions: string[] = [];
     let inferredType = DocumentType.Other;
     let latestUpdateRefreshed = false;
+    let latestUpdateBlockedFields: string[] = [];
     try {
       const allAccounts = await this.accounts.findAll();
       const knownAccountIds = new Set(allAccounts.map((account) => account.id as string));
@@ -130,11 +131,12 @@ export class ProcessDocumentUpload {
       }
 
       if (extraction.latestUpdate) {
-        await this.applyExtractedUpdate.execute({
+        const applied = await this.applyExtractedUpdate.execute({
           draft: extraction.latestUpdate,
           sourceDocumentId: document.id,
           knownAccountIds,
         });
+        latestUpdateBlockedFields = [...applied.blockedFields];
         latestUpdateRefreshed = true;
       }
     } catch (error) {
@@ -162,6 +164,7 @@ export class ProcessDocumentUpload {
       signalsCreated,
       unmatchedAccountMentions,
       latestUpdateRefreshed,
+      latestUpdateBlockedFields,
     };
   }
 }

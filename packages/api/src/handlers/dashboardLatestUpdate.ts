@@ -4,6 +4,8 @@ import { getCompositionRoot } from "../compositionRoot.js";
 import { respondToError } from "./errorResponse.js";
 
 const EDITABLE_FIELDS = ["headline", "lastContact", "nextMeeting", "awaitingInternal", "nextActions"] as const;
+/** A body may also do nothing but release pins — that is a real change, not an empty patch. */
+const PATCHABLE_KEYS = [...EDITABLE_FIELDS, "unpinFields"] as const;
 
 /**
  * GET returns `null` (200) before anything has been ingested — same
@@ -28,8 +30,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
   if (req.method === "PATCH") {
     const body = req.body as UpdateExpansionUpdateCommand | undefined;
-    if (!body || typeof body !== "object" || !EDITABLE_FIELDS.some((field) => field in body)) {
-      res.status(400).json({ error: `Request body must name at least one of: ${EDITABLE_FIELDS.join(", ")}` });
+    if (!body || typeof body !== "object" || !PATCHABLE_KEYS.some((field) => field in body)) {
+      res.status(400).json({ error: `Request body must name at least one of: ${PATCHABLE_KEYS.join(", ")}` });
       return;
     }
     try {

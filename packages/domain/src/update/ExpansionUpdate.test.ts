@@ -115,3 +115,66 @@ describe("ExpansionUpdate.applyManualEdit", () => {
     expect(twice.manuallyEditedFields).toEqual([ExpansionUpdateField.Headline]);
   });
 });
+
+describe("ExpansionUpdate.blockedFields", () => {
+  it("names every proposal a pin would throw away", () => {
+    const pinned = anUpdate({
+      manuallyEditedFields: [ExpansionUpdateField.Headline, ExpansionUpdateField.NextActions],
+    });
+
+    expect(pinned.blockedFields({ headline: "Pilot agreed", nextActions: ["Book kickoff"] })).toEqual([
+      ExpansionUpdateField.Headline,
+      ExpansionUpdateField.NextActions,
+    ]);
+  });
+
+  it("ignores a pinned field the draft proposes nothing for", () => {
+    const pinned = anUpdate({ manuallyEditedFields: [ExpansionUpdateField.NextMeeting] });
+
+    expect(pinned.blockedFields({ headline: "Pilot agreed" })).toEqual([]);
+  });
+
+  it("ignores a headline the draft leaves blank", () => {
+    const pinned = anUpdate({ manuallyEditedFields: [ExpansionUpdateField.Headline] });
+
+    expect(pinned.blockedFields({ headline: "   " })).toEqual([]);
+  });
+
+  it("agrees with what applyDraft actually does", () => {
+    const pinned = anUpdate({ manuallyEditedFields: [ExpansionUpdateField.Headline] });
+    const draft = { headline: "Pilot agreed", nextActions: ["Book kickoff"] };
+
+    expect(pinned.blockedFields(draft)).toEqual([ExpansionUpdateField.Headline]);
+    const revised = pinned.applyDraft(draft, LATER_DOC, LATER);
+    expect(revised.headline).toBe("Itaú integration scoping under way");
+    expect(revised.nextActions).toEqual(["Book kickoff"]);
+  });
+});
+
+describe("ExpansionUpdate.releasePins", () => {
+  it("lets a released field take a draft again", () => {
+    const pinned = anUpdate({ manuallyEditedFields: [ExpansionUpdateField.Headline] });
+
+    const released = pinned.releasePins([ExpansionUpdateField.Headline], LATER);
+    expect(released.manuallyEditedFields).toEqual([]);
+    expect(released.applyDraft({ headline: "Pilot agreed" }, LATER_DOC, LATER).headline).toBe("Pilot agreed");
+  });
+
+  it("keeps the pins it was not asked to release", () => {
+    const pinned = anUpdate({
+      manuallyEditedFields: [ExpansionUpdateField.Headline, ExpansionUpdateField.NextActions],
+    });
+
+    const released = pinned.releasePins([ExpansionUpdateField.Headline], LATER);
+
+    expect(released.manuallyEditedFields).toEqual([ExpansionUpdateField.NextActions]);
+  });
+
+  it("leaves the field's value alone — releasing is not reverting", () => {
+    const pinned = anUpdate({ manuallyEditedFields: [ExpansionUpdateField.Headline] });
+
+    expect(pinned.releasePins([ExpansionUpdateField.Headline], LATER).headline).toBe(
+      "Itaú integration scoping under way",
+    );
+  });
+});

@@ -488,6 +488,19 @@ export function UploadFAB({ onImported, variant = "fab" }: UploadFABProps) {
                     {submitResult.data.signalsCreated.length === 1 ? "" : "s"} extracted
                     {submitResult.data.latestUpdateRefreshed ? ", and the Brazil update was refreshed." : "."}
                   </p>
+                  {/* "Refreshed" used to be claimed even when every field was
+                      pinned and nothing on the card actually moved. Name what
+                      was held back, and where to release it. */}
+                  {submitResult.data.latestUpdateBlockedFields.length > 0 && (
+                    <p className="upload-sheet__result-note">
+                      {submitResult.data.latestUpdateBlockedFields.length} field
+                      {submitResult.data.latestUpdateBlockedFields.length === 1 ? " was" : "s were"} left alone because
+                      you set {submitResult.data.latestUpdateBlockedFields.length === 1 ? "it" : "them"} by hand:{" "}
+                      <strong>{submitResult.data.latestUpdateBlockedFields.map(formatEnumLabel).join(", ")}</strong>. Open
+                      the Latest Update card and click &ldquo;set by hand&rdquo; on a field to let uploads update it
+                      again.
+                    </p>
+                  )}
                   {submitResult.data.signalsCreated.length > 0 && (
                     <ul className="upload-sheet__result-errors">
                       {submitResult.data.signalsCreated.map((signal) => (
